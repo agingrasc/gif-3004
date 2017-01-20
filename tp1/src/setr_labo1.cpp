@@ -27,9 +27,9 @@ int fonctionComparatrice(void const *a, void const *b){
 	const int *cmp2 = (const int *) b;
 
 	// On effectue la comparaison
-	if(cmp1 < cmp2)
+	if(*cmp1 < *cmp2)
 		return -1;
-	else if(cmp1 == cmp2)
+	else if(*cmp1 == *cmp2)
 		return 0;
 	else
 		return 1;
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 	// Voir ici pour une description de son utilisation : http://www.cplusplus.com/reference/cstdlib/qsort/
 	qsort(numbers, 					// Notre tableau de nombres a trier
 			N_ELEM, 				// Le nombre d'elements dans le tableau
-			8, 						// Le nombre d'octets par element;
+			sizeof(int), 						// Le nombre d'octets par element;
 									// 	le programme est compile sur un ordinateur 64 bits (celui sur lequel Eclipse est installe), donc un int fait 8 octets
 			fonctionComparatrice);  // La fonction permettant d'ordonner deux elements
 
@@ -110,7 +110,7 @@ int main(int argc, char *argv[]) {
 
 	// Utilisation d'une fonction de tri personnalisee
 	// Sa signature est la meme que qsort, pour faciliter les tests
-	maFonctionDeTri(numbers, N_ELEM, 8, fonctionComparatrice);
+	maFonctionDeTri(numbers, N_ELEM, sizeof(int), fonctionComparatrice);
 	printf("Premier et dernier elements du tableau (post-tri, fonction de tri personnalisee) : %i / %i\n", numbers[0], numbers[N_ELEM-1]);
 
 	return 0;
