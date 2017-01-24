@@ -64,7 +64,7 @@ int main(int argc, char* argv[]){
 
     // Implémentez ici le code permettant d'attacher la fonction "gereSignal" au signal SIGUSR1
     if (signal(SIGUSR1, gereSignal) == SIG_ERR)
-	printf("\ncan't catch SIGUSR1\n");
+	perror("\ncan't catch SIGUSR1\n");
 
 
     // Création et initialisation du socket (il y a 5 étapes)
@@ -72,29 +72,43 @@ int main(int argc, char* argv[]){
     //      Puis, désignez le socket comme étant de type AF_UNIX
     //      Finalement, copiez le chemin vers le socket UNIX dans le bon attribut de la structure
     //      Voyez man unix(7) pour plus de détails sur cette structure
-    struct socketaddr_un un;
+    struct sockaddr_un un;
     memset(&un, 0, sizeof un); //For some reason...
     un.sun_family = AF_UNIX;
-    memcpy(un.sun_addr, path, sizeof un.sun_addr)
+    memcpy(un.sun_path, path, sizeof un.sun_path);
 
-    // TODO
     // 2) Créez le socket en utilisant la fonction socket().
     //      Vérifiez si sa création a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
-    // TODO
+    int sock_desc = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock_desc < 0) {
+        perror("socket() failure");
+	return 1;
+    }
     // 3) Utilisez fcntl() pour mettre le socket en mode non-bloquant
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man fcntl pour plus de détails sur le champ à modifier
+    fcntl(sock_desc, F_SETFL, O_NONBLOCK);
 
-    // TODO
     // 4) Faites un bind sur le socket
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man bind(2) pour plus de détails sur cette opération
+    int sock = bind(sock_desc, (struct sockaddr *)&un, sizeof(struct sockaddr_un));
+    if (sock < 0)
+    {
+        perror("bind() failure");
+        return 1;
+    }
 
     // TODO
     // 5) Mettez le socket en mode écoute (listen), en acceptant un maximum de MAX_CONNEXIONS en attente
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man listen pour plus de détails sur cette opération
-
+    sock = listen(sock_desc, MAX_CONNEXIONS);
+    if (sock < 0)
+    {
+        perror("listen() failed");
+        return 1;
+    }
 
     // Initialisation du socket UNIX terminée!
 
