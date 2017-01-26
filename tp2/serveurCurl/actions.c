@@ -79,7 +79,15 @@ int traiterConnexions(struct requete reqList[], int maxlen){
 
                     // Ici, vous devez tout d'abord initialiser un nouveau pipe à l'aide de la fonction pipe()
                     // Voyez man pipe pour plus d'informations sur son fonctionnement
-                    // TODO
+                    // 
+                    // Adapté de la man page https://linux.die.net/man/2/pipe
+                    int pipefd[2];
+                    if (pipe(pipefd) == -1) {
+                        perror("pipe");
+                        exit(EXIT_FAILURE);
+                    }
+
+                    
 
                     // Une fois le pipe initialisé, vous devez effectuer un fork, à l'aide de la fonction du même nom
                     // Cela divisera votre processus en deux nouveaux processus, un parent et un enfant.
@@ -92,8 +100,25 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                     //
                     // Pour plus d'informations sur la fonction fork() et sur la manière de détecter si vous êtes dans
                     // le parent ou dans l'enfant, voyez man fork(2).
-                    // TODO
-
+                    pid_t cpid;
+                    cpid = fork();
+                    if (cpid == -1) {
+                        perror("fork");
+                        exit(EXIT_FAILURE);
+                    }
+                    if (cpid == 0) {    /* Child reads from pipe */
+                        close(pipefd[0]);          /* Close unused write end */
+                        executeRequete(pipefd[1], buffer);
+                        reqList[i].buf = buffer;
+                        reqList[i].len = sizeof(req) + req.sizePayload;
+                        close(pipefd[1]);
+                        _exit(EXIT_SUCCESS);
+                    } else {            /* Parent writes argv[1] to pipe */
+                        close(pipefd[1]);          /* Close unused read end */
+                        reqList[i].pid = cpid;
+                        reqList[i].fdPipe = pipefd[0];
+                        reqList[i].status = REQ_STATUS_INPROGRESS;
+                    }
                 }
             }
         }
