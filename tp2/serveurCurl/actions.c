@@ -12,8 +12,14 @@ int verifierNouvelleConnexion(struct requete reqList[], int maxlen, int socket){
     // Voyez man accept(2) pour plus de détails sur cette fonction
     //
     // Cette fonction doit retourner 0 si elle n'a pas acceptée de nouvelle connexion, ou 1 dans le cas contraire.
+    //
+    int request_index = nouvelleRequete(reqList, maxlen);
+    if(request_index == -1)
+        return 0;
 
-    // TODO
+    int status = accept(socket, NULL, NULL);
+    return !(status == EAGAIN || status == EWOULDBLOCK);
+
 }
 
 int traiterConnexions(struct requete reqList[], int maxlen){

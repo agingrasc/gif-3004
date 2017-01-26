@@ -1,7 +1,6 @@
 #include "telechargeur.h"
 
-// TODO À MODIFIER SELON L'ADRESSE FOURNIE DANS L'ENONCE
-const char baseUrl[] = "http://";
+const char baseUrl[] = "http://wcours.gel.ulaval.ca/2017/h/GIF3004/default/labo2_fichiers/";
 
 
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp){

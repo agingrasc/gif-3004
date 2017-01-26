@@ -38,15 +38,32 @@ const char* statusDesc[] = {"Inoccupe", "Connexion client etablie", "En cours de
 // Contient les requetes en cours de traitement
 struct requete reqList[MAX_CONNEXIONS];
 
+void printLine(int length){
+    for(int i = 0; i < length; i++)
+        printf("—");
+    printf("\n");
+}
 
 void gereSignal(int signo) {
     // Fonction affichant des statistiques sur les tâches en cours
     // lorsque SIGUSR1 (et _seulement_ SIGUSR1) est reçu
+    printLine(58);
+    printf("| %2s | %24s | %7s | %12s |\n", "#", "Status", "PID", "File");
+    printLine(58);
     if (signo == SIGUSR1){
+        for(int i = 0; i<MAX_CONNEXIONS; i++){
+            const char* status = statusDesc[reqList[i].status];
+            pid_t pid = reqList[i].pid;
 
-	    // TODO
+            char fichier[reqList[i].len+1];
+            fichier[reqList[i].len] = '\0';
+            memcpy(fichier, reqList[i].buf, reqList[i].len);
+
+            printf("| %2d | %24s | %7d | %12s |\n", i, status, pid, fichier);
+        }
     }
 
+    printLine(58);
 }
 
 
@@ -61,6 +78,8 @@ int main(int argc, char* argv[]){
 
     // On initialise la liste des requêtes
     memset(&reqList, 0, sizeof reqList);
+
+    printf("PID: %d\n", getpid());
 
     // Implémentez ici le code permettant d'attacher la fonction "gereSignal" au signal SIGUSR1
     if (signal(SIGUSR1, gereSignal) == SIG_ERR)
@@ -99,7 +118,6 @@ int main(int argc, char* argv[]){
         return 1;
     }
 
-    // TODO
     // 5) Mettez le socket en mode écoute (listen), en acceptant un maximum de MAX_CONNEXIONS en attente
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man listen pour plus de détails sur cette opération
