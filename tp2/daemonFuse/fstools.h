@@ -23,9 +23,10 @@ struct cacheFichier{
 // ainsi que sur le début de la liste chaînée.
 // Contient également un mutex utilisé pour synchroniser les accès au cache entre les threads.
 struct cacheData{
-		char* rootDirIndex;
-		struct cacheFichier *firstFile;
-		pthread_mutex_t mutex;
+	char* rootDirIndex;
+	struct cacheFichier *firstFile;
+	pthread_mutex_t mutex;
+	int socket;
 };
 
 // ATTENTION : toutes les fonctions suivantes supposent que vous avez _déjà_ l'accès exclusif au cache

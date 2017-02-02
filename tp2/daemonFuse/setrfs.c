@@ -42,10 +42,11 @@
 
 #include "fstools.h"
 
+#define ALL_PERMISSION S_IRWXU | S_IRWXG | S_IRWXO
 
 const char unixSockPath[] = "/tmp/unixsocket";
 
-
+int fhNum = 10;
 
 // Cette fonction initialise le cache et l'insère dans le contexte de FUSE, qui sera
 // accessible à toutes les autres fonctions.
@@ -57,6 +58,24 @@ void* setrfs_init(struct fuse_conn_info *conn){
 	pthread_mutex_init(&(cache.mutex), NULL);
 	char *cachePtr = malloc(sizeof cache);
 	memcpy(cachePtr, &cache, sizeof cache);
+
+	// init socket
+	int sockfd;
+    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
+		perror("socket() failure");
+		exit(1);
+	}
+
+	struct sockaddr_un servaddr;
+	memset(&servaddr, 0, sizeof servaddr);
+	servaddr.sun_family = AF_UNIX;
+	memcpy(servaddr.sun_path, unixSockPath, sizeof servaddr.sun_path);
+	if (connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) < 0) {
+		perror("conenct() failure");
+		exit(1);
+	}
+
+	cache.socket = sockfd;
 	return (void*)cachePtr;
 }
 
@@ -88,12 +107,14 @@ static int setrfs_getattr(const char *path, struct stat *stbuf)
 	stbuf->st_gid = context->gid;		// Idem pour le groupe
 
 	// TODO
+	stbuf->st_mode = S_IFREG | ALL_PERMISSION;
+	stbuf->st_size = 1;
 }
 
 
 // Cette fonction est utilisée pour lister un dossier. Elle est déjà implémentée pour vous
 static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-		       off_t offset, struct fuse_file_info *fi)
+						  off_t offset, struct fuse_file_info *fi)
 {
 	DIR *dp;
 	struct dirent *de;
@@ -108,28 +129,28 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		// On doit faire une requete
 		// On ouvre un socket
 		int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-	    if(sock == -1){
-	        perror("Impossible d'initialiser le socket UNIX");
-	        return -1;
-	    }
+		if(sock == -1){
+			perror("Impossible d'initialiser le socket UNIX");
+			return -1;
+		}
 
-	    // Ecriture des parametres du socket
-	    struct sockaddr_un sockInfo;
-	    memset(&sockInfo, 0, sizeof sockInfo);
-	    sockInfo.sun_family = AF_UNIX;
-	    strncpy(sockInfo.sun_path, unixSockPath, sizeof sockInfo.sun_path - 1);
+		// Ecriture des parametres du socket
+		struct sockaddr_un sockInfo;
+		memset(&sockInfo, 0, sizeof sockInfo);
+		sockInfo.sun_family = AF_UNIX;
+		strncpy(sockInfo.sun_path, unixSockPath, sizeof sockInfo.sun_path - 1);
 
 		// Connexion
-	    if(connect(sock, (const struct sockaddr *) &sockInfo, sizeof sockInfo) < 0){
-	        perror("Erreur connect");
-	        exit(1);
-	    }
+		if(connect(sock, (const struct sockaddr *) &sockInfo, sizeof sockInfo) < 0){
+			perror("Erreur connect");
+			exit(1);
+		}
 
 		// Formatage et envoi de la requete
 		//size_t len = strlen() + 1;		// +1 pour le caractere NULL de fin de chaine
-	    struct msgReq req;
-	    req.type = REQ_LIST;
-	    req.sizePayload = 0;
+		struct msgReq req;
+		req.type = REQ_LIST;
+		req.sizePayload = 0;
 		int octetsTraites = envoyerMessage(sock, &req, NULL);
 
 		// On attend et on recoit le fichier demande
@@ -205,7 +226,21 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 // énoncées plus haut. Rappelez-vous en particulier qu'un pointeur est unique...
 static int setrfs_open(const char *path, struct fuse_file_info *fi)
 {
-		// TODO
+	// TODO
+    struct fuse_context* context = fuse_get_context();
+	struct cacheData* cache = (struct cacheData*) context->private_data;
+
+	// section critique
+    pthread_mutex_lock(&cache->mutex);
+	struct cacheFichier* fhCache = trouverFichierEnCache(path, cache);
+	pthread_mutex_unlock(&cache->mutex);
+
+	if (fhCache == NULL) {
+		// on essaye d'obtenir le fichier
+		envoyerMessage(, )
+	}
+
+
 }
 
 
@@ -225,9 +260,9 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi)
 // N'oubliez pas que vous recevez le file handle dans la structure fuse_file_info. Vous n'êtes pas forcés de l'utiliser,
 // mais si vous y avez mis quelque chose d'utile, il est facile de le récupérer!
 static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
-		    struct fuse_file_info *fi)
+					   struct fuse_file_info *fi)
 {
-		// TODO
+	// TODO
 }
 
 
@@ -236,7 +271,7 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
 // utilisée pour stocker ce fichier (pensez au buffer contenant son cache, son nom, etc.)
 static int setrfs_release(const char *path, struct fuse_file_info *fi)
 {
-		// TODO
+	// TODO
 }
 
 
@@ -248,7 +283,7 @@ static int setrfs_release(const char *path, struct fuse_file_info *fi)
 ///////////////////////////////////////
 
 static int setrfs_write(const char *path, const char *buf, size_t size,
-		     off_t offset, struct fuse_file_info *fi)
+						off_t offset, struct fuse_file_info *fi)
 {
 	int fd;
 	int res;
@@ -389,7 +424,7 @@ static int setrfs_utimens(const char *path, const struct timespec ts[2])
 #endif
 
 static int setrfs_fsync(const char *path, int isdatasync,
-		     struct fuse_file_info *fi)
+						struct fuse_file_info *fi)
 {
 	/* Just a stub.	 This method is optional and can safely be left
 	   unimplemented */
@@ -452,35 +487,35 @@ printf("setrfs_removexattr\n");
 #endif /* HAVE_SETXATTR */
 
 static struct fuse_operations setrfs_oper = {
-	.init 		= setrfs_init,
-	.getattr	= setrfs_getattr,
-	.access		= setrfs_access,
-	.readlink	= setrfs_readlink,
-	.readdir	= setrfs_readdir,
-	.mknod		= setrfs_mknod,
-	.mkdir		= setrfs_mkdir,
-	.symlink	= setrfs_symlink,
-	.unlink		= setrfs_unlink,
-	.rmdir		= setrfs_rmdir,
-	.rename		= setrfs_rename,
-	.link		= setrfs_link,
-	.chmod		= setrfs_chmod,
-	.chown		= setrfs_chown,
-	.truncate	= setrfs_truncate,
+		.init 		= setrfs_init,
+		.getattr	= setrfs_getattr,
+		.access		= setrfs_access,
+		.readlink	= setrfs_readlink,
+		.readdir	= setrfs_readdir,
+		.mknod		= setrfs_mknod,
+		.mkdir		= setrfs_mkdir,
+		.symlink	= setrfs_symlink,
+		.unlink		= setrfs_unlink,
+		.rmdir		= setrfs_rmdir,
+		.rename		= setrfs_rename,
+		.link		= setrfs_link,
+		.chmod		= setrfs_chmod,
+		.chown		= setrfs_chown,
+		.truncate	= setrfs_truncate,
 #ifdef HAVE_UTIMENSAT
-	.utimens	= setrfs_utimens,
+		.utimens	= setrfs_utimens,
 #endif
-	.open		= setrfs_open,
-	.read		= setrfs_read,
-	.write		= setrfs_write,
-	.statfs		= setrfs_statfs,
-	.release	= setrfs_release,
-	.fsync		= setrfs_fsync,
+		.open		= setrfs_open,
+		.read		= setrfs_read,
+		.write		= setrfs_write,
+		.statfs		= setrfs_statfs,
+		.release	= setrfs_release,
+		.fsync		= setrfs_fsync,
 #ifdef HAVE_POSIX_FALLOCATE
-	.fallocate	= setrfs_fallocate,
+		.fallocate	= setrfs_fallocate,
 #endif
 #ifdef HAVE_SETXATTR
-	.setxattr	= setrfs_setxattr,
+.setxattr	= setrfs_setxattr,
 	.getxattr	= setrfs_getxattr,
 	.listxattr	= setrfs_listxattr,
 	.removexattr	= setrfs_removexattr,
