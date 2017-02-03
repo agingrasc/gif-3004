@@ -87,7 +87,26 @@ static int setrfs_getattr(const char *path, struct stat *stbuf)
 	stbuf->st_uid = context->uid;		// On indique l'utilisateur actuel comme proprietaire
 	stbuf->st_gid = context->gid;		// Idem pour le groupe
 
+    stbuf->st_dev = 0;
+    stbuf->st_ino = 0;
+    stbuf->st_nlink = 1;
+    stbuf->st_rdev = 0;
+    stbuf->st_blksize = 0;
+    stbuf->st_blocks = 0;
+    printf("%s\n", path);
 	// TODO
+    //
+    stbuf->st_mode = 0777; 
+    if (strcmp(path, "/") == 0){
+        stbuf->st_size = 0;
+        stbuf->st_mode |= S_IFDIR;
+    }
+    else{
+        stbuf->st_size = 1;
+        stbuf->st_mode |= S_IFREG;
+    }
+
+    return 0;
 }
 
 
@@ -206,6 +225,8 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 static int setrfs_open(const char *path, struct fuse_file_info *fi)
 {
 		// TODO
+        printf("open: %s", path);
+        return -1;
 }
 
 
@@ -228,6 +249,8 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
 		// TODO
+        printf("read: %s", path);
+        return 0;
 }
 
 
@@ -237,6 +260,7 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
 static int setrfs_release(const char *path, struct fuse_file_info *fi)
 {
 		// TODO
+        return 0;
 }
 
 
