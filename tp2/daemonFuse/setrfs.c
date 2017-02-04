@@ -93,11 +93,12 @@ static int setrfs_getattr(const char *path, struct stat *stbuf)
     stbuf->st_rdev = 0;
     stbuf->st_blksize = 0;
     stbuf->st_blocks = 0;
-    printf("%s\n", path);
+    printf("getattr: %s\n", path);
 	// TODO
     //
     stbuf->st_mode = 0777; 
     if (strcmp(path, "/") == 0){
+        stbuf->st_nlink = 2;
         stbuf->st_size = 0;
         stbuf->st_mode |= S_IFDIR;
     }
@@ -138,12 +139,15 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	    sockInfo.sun_family = AF_UNIX;
 	    strncpy(sockInfo.sun_path, unixSockPath, sizeof sockInfo.sun_path - 1);
 
+        printf("Gonna open socket\n");
+
 		// Connexion
 	    if(connect(sock, (const struct sockaddr *) &sockInfo, sizeof sockInfo) < 0){
 	        perror("Erreur connect");
 	        exit(1);
 	    }
 
+        printf("Socket opened\n");
 		// Formatage et envoi de la requete
 		//size_t len = strlen() + 1;		// +1 pour le caractere NULL de fin de chaine
 	    struct msgReq req;
@@ -153,6 +157,7 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 		// On attend et on recoit le fichier demande
 		struct msgRep rep;
+        printf("Gonna read socket\n");
 		octetsTraites = read(sock, &rep, sizeof rep);
 		if(octetsTraites == -1){
 			perror("Erreur en effectuant un read() sur un socket pret");
@@ -160,7 +165,9 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		}
 		if(VERBOSE)
 			printf("Lecture de l'en-tete de la reponse sur le socket %i\n", sock);
+        printf("Socket read\n");
 
+        printf("gonna get lock now\n");
 		pthread_mutex_lock(&(cache->mutex));
 		cache->rootDirIndex = malloc(rep.sizePayload + 1);
 		cache->rootDirIndex[rep.sizePayload] = 0;		// On s'assure d'avoir le caractere nul a la fin de la chaine
@@ -224,8 +231,17 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 // énoncées plus haut. Rappelez-vous en particulier qu'un pointeur est unique...
 static int setrfs_open(const char *path, struct fuse_file_info *fi)
 {
-		// TODO
-        printf("open: %s", path);
+        printf("open: %s\n", path);
+	    struct fuse_context *context = fuse_get_context();
+        struct cacheData *cache = (struct cacheData*)context->private_data;
+        struct cacheFichier* fichier = trouverFichierEnCache(path, cache);
+
+        if (fichier == NULL){
+            //Call server
+        }
+
+
+
         return -1;
 }
 
@@ -249,7 +265,7 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
 		    struct fuse_file_info *fi)
 {
 		// TODO
-        printf("read: %s", path);
+        printf("read: %s\n", path);
         return 0;
 }
 

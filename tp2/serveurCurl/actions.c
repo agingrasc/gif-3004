@@ -1,5 +1,7 @@
 #include "actions.h"
 
+#include <errno.h>
+
 int verifierNouvelleConnexion(struct requete reqList[], int maxlen, int socket){
     // Dans cette fonction, vous devez d'abord vérifier si le serveur peut traiter
     // une nouvelle connexions (autrement dit, si le nombre de connexions en cours
@@ -17,8 +19,17 @@ int verifierNouvelleConnexion(struct requete reqList[], int maxlen, int socket){
     if(request_index == -1)
         return 0;
 
-    int status = accept(socket, NULL, NULL);
-    return !(status == EAGAIN || status == EWOULDBLOCK);
+    int newSocket = accept(socket, NULL, NULL);
+    //if (status == EAGAIN || status == EWOULDBLOCK)
+    if (newSocket == -1)
+        return 0;
+
+    printf("new sock: %i\n", newSocket);
+
+    reqList[request_index].fdSocket = newSocket;
+    reqList[request_index].status = REQ_STATUS_LISTEN;
+
+    return 1;
 
 }
 
