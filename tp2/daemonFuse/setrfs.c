@@ -99,6 +99,7 @@ static int setrfs_getattr(const char *path, struct stat *stbuf) {
     printf("getattr: %s\n", path);
 
     // on determine la taille du fichier
+    pthread_mutex_lock(&cache->mutex);
     cacheFichier* file = trouverFichierEnCache(path, cache);
     size_t len = 1;
     if (file != NULL) {
@@ -107,12 +108,13 @@ static int setrfs_getattr(const char *path, struct stat *stbuf) {
     stbuf->st_mode = 0777;
     if (strcmp(path, "/") == 0) {
         stbuf->st_nlink = 2;
-        stbuf->st_size = 0;
+        stbuf->st_size = 1;
         stbuf->st_mode |= S_IFDIR;
     } else {
         stbuf->st_size = len;
         stbuf->st_mode |= S_IFREG;
     }
+    pthread_mutex_unlock(&cache->mutex);
 
     return 0;
 }
@@ -269,21 +271,22 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi) {
         cacheFichier* file = malloc(sizeof(cacheFichier));
         memset(file, 0, sizeof(cacheFichier));
 
-        char* name = malloc(pathLen*sizeof(char));
+        char* name = malloc(pathLen*sizeof(char) + 1);
         file->nom = name;
         strncpy(file->nom, path, pathLen);
+        file->nom[pathLen] = '\0';
         // lecture du contenu
-        size_t byteToRead = rep.sizePayload;
-        char* content = malloc(bytesRead + 1);
-        content[bytesRead] = NULL;
+        size_t bytesToRead = rep.sizePayload;
+        char* content = malloc(bytesToRead + 1);
+        content[bytesToRead] = NULL;
         file->data = content;
         size_t byteProcessed = 0;
-        while (byteProcessed < byteToRead) {
-            byteProcessed += read(sockfd, file->data + byteProcessed, byteToRead - byteProcessed);
+        while (byteProcessed < bytesToRead) {
+            byteProcessed += read(sockfd, file->data + byteProcessed, bytesToRead - byteProcessed);
         }
 
         // ecriture des props du fichier dans la structure et insertion dans la cache
-        file->len = byteToRead;
+        file->len = bytesToRead;
         file->countOpen = 1;
         file->prev = NULL;
         file->next = NULL;
@@ -324,6 +327,7 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
     // TODO
     cacheFichier* file = fi->fh;
 
+    fwrite(file->data, file->len, file->len, stdout);
     // correction de la taille de lecture
     size_t fileSize = file->len;
     if (size - offset > fileSize) {
@@ -341,7 +345,15 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
 // Vous n'avez rien de particulier à produire comme résultat, mais vous devez vous assurer de libérer toute la mémoire
 // utilisée pour stocker ce fichier (pensez au buffer contenant son cache, son nom, etc.)
 static int setrfs_release(const char *path, struct fuse_file_info *fi) {
-    // TODO
+    printf("release: %s\n", path);
+    struct fuse_context* context = fuse_get_context();
+    cacheData* cache = (cacheData*) context->private_data;
+
+    pthread_mutex_lock(&cache->mutex);
+    cacheFichier* file = fi->fh;
+    retireFichier(file, cache);
+    pthread_mutex_unlock(&cache->mutex);
+
     return 0;
 }
 

@@ -5,7 +5,8 @@ set(PROJECT_INCLUDE_DIR ./)
 set(PROJECT_SOURCE_DIR ./)
 
 set(GENERIC_C_FLAGS
-        -Wall)
+        -Wall
+        -ggdb3)
 
 set(FUSE_SRC
         communications.c
