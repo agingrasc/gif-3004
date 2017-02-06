@@ -81,6 +81,7 @@ void *setrfs_init(struct fuse_conn_info *conn) {
 // Cette fonction montre également comment récupérer le _contexte_ du système de fichiers. Vous pouvez utiliser ces
 // lignes dans d'autres fonctions.
 static int setrfs_getattr(const char *path, struct stat *stbuf) {
+    printf("getattr: %s\n", path);
     // On récupère le contexte
     struct fuse_context *context = fuse_get_context();
     struct cacheData* cache = (cacheData *) context->private_data;
@@ -96,7 +97,6 @@ static int setrfs_getattr(const char *path, struct stat *stbuf) {
     stbuf->st_rdev = 0;
     stbuf->st_blksize = 0;
     stbuf->st_blocks = 0;
-    printf("getattr: %s\n", path);
 
     // on determine la taille du fichier
     pthread_mutex_lock(&cache->mutex);
@@ -237,7 +237,7 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 // énoncées plus haut. Rappelez-vous en particulier qu'un pointeur est unique...
 static int setrfs_open(const char *path, struct fuse_file_info *fi) {
     printf("open(%s)\n", path);
-    // TODO
+
     struct fuse_context *context = fuse_get_context();
     struct cacheData *cache = (struct cacheData *) context->private_data;
 
@@ -322,21 +322,20 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi) {
 static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
 
+    printf("read: %s\n", path);
     struct fuse_context *context = fuse_get_context();
     struct cacheData *cache = (struct cacheData *) context->private_data;
     // TODO
     cacheFichier* file = fi->fh;
 
-    fwrite(file->data, file->len, file->len, stdout);
     // correction de la taille de lecture
     size_t fileSize = file->len;
-    if (size - offset > fileSize) {
+    if (size > fileSize - offset) {
         size = fileSize - offset;
     }
 
     strncpy(buf, file->data + offset, size);
 
-    printf("read: %s\n", path);
     return size;
 }
 
