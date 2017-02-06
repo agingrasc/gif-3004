@@ -8,6 +8,7 @@ set(GENERIC_C_FLAGS
         -Wall)
 
 set(CURL_SRC
+        actions.c
         communications.c
         requete.c
         servermain.c
@@ -17,3 +18,4 @@ set(CURL_SRC
 
 add_executable(serveurCurl ${CURL_SRC})
 target_compile_options(serveurCurl PRIVATE ${GENERIC_C_FLAGS})
+target_link_libraries(serveurCurl curl)

@@ -237,7 +237,7 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi)
 
 	if (fhCache == NULL) {
 		// on essaye d'obtenir le fichier
-		envoyerMessage(, )
+		// envoyerMessage(, )
 	}
 
 
