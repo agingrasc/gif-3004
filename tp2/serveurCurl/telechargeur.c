@@ -100,6 +100,8 @@ void executeRequete(int pipeFd, char* reqBuffer){
          if(VERBOSE)
             printf("Ecriture sur le pipe, %i octets ecrits\n", c);
 
+         printf("Chunk size: %u\n", chunk.size);
+         printf("WrittenBytes: %u\n", writtenBytes);
          while(writtenBytes < chunk.size){
              // Le buffer du pipe peut ne pas etre assez gros pour tout contenir d'un coup!
              c = write(pipeFd, chunk.memory + writtenBytes, chunk.size - writtenBytes);

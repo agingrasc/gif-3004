@@ -1,6 +1,7 @@
 #include "actions.h"
 
 #include <errno.h>
+#include <stdint.h>
 
 int verifierNouvelleConnexion(struct requete reqList[], int maxlen, int socket){
     // Dans cette fonction, vous devez d'abord vérifier si le serveur peut traiter
@@ -200,21 +201,25 @@ int traiterTelechargements(struct requete reqList[], int maxlen){
 
                     //memcpy(&req, buffer, sizeof req);
                     //buffer = realloc(buffer, sizeof(req) + req.sizePayload);
-                    char buffer[payload_size];
+                    printf("Payload size: %u\n", payload_size);
+                    char* buffer = malloc(payload_size);
                     size_t payload_done = 0;
                     while (payload_done < payload_size){
+                        printf("Remaing payload: %u\n", payload_size-payload_done);
                         octetsTraites = read(reqList[i].fdPipe, buffer+payload_done, payload_size-payload_done);
                         payload_done += octetsTraites;
                     }
                     if(VERBOSE){
-                        printf("\t%i octets lus au total\n", payload_done + sizeof(payload_size));
+                        printf("\t%i octets lus au total\n", payload_done);
                         printf("\tContenu de la requete : %s\n", buffer);
                     }
 
                     reqList[i].len = payload_size;
                     reqList[i].buf = realloc(reqList[i].buf, payload_size);
-                    memcpy(reqList[i].buf, &buffer, payload_size); //Might be faster to realloc before, but that might be DEADLY
+                    memcpy(reqList[i].buf, buffer, payload_size); //Might be faster to realloc before, but that might be DEADLY
                     reqList[i].status = REQ_STATUS_READYTOSEND;
+
+                    free(buffer);
 
                     waitpid(reqList[i].pid, NULL, 0);
                     close(reqList[i].fdPipe);
