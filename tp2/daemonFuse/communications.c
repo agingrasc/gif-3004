@@ -1,3 +1,4 @@
+#include <sys/un.h>
 #include "communications.h"
 
 int envoyerMessage(int socket, void *header, char* payload){
@@ -20,4 +21,27 @@ int envoyerMessage(int socket, void *header, char* payload){
             printf("SEND LOOP : %u\n", octetsEcrits);
     }
     return totalEnvoi + sizeof(struct msgRep);
+}
+
+int ouvrirSocket(int* sockfd, char addrPath[]) {
+    //ouverture du socket et mise en cache
+    *sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("Impossible d'initialiser le socket UNIX");
+        return -1;
+    }
+
+    struct sockaddr_un sockInfo;
+    memset(&sockInfo, 0, sizeof sockInfo);
+    sockInfo.sun_family = AF_UNIX;
+    strncpy(sockInfo.sun_path, addrPath, sizeof sockInfo.sun_path -1);
+
+    printf("Ouverture du socket\n");
+
+    if (connect(*sockfd, (const struct sockaddr*) &sockInfo, sizeof sockInfo) < 0) {
+        perror("Erreur de connexion");
+        exit(1);
+    }
+    printf("Socket ouvert!");
+    return 0;
 }

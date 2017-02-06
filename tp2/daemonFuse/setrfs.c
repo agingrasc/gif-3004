@@ -60,23 +60,6 @@ void *setrfs_init(struct fuse_conn_info *conn) {
     char *cachePtr = malloc(sizeof cache);
     memcpy(cachePtr, &cache, sizeof cache);
 
-    // init socket
-    int sockfd;
-    if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-        perror("socket() failure");
-        exit(1);
-    }
-
-    struct sockaddr_un servaddr;
-    memset(&servaddr, 0, sizeof servaddr);
-    servaddr.sun_family = AF_UNIX;
-    memcpy(servaddr.sun_path, unixSockPath, sizeof servaddr.sun_path);
-    if (connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
-        perror("conenct() failure");
-        exit(1);
-    }
-
-    cache.socket = sockfd;
     return (void *) cachePtr;
 }
 
@@ -199,10 +182,8 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     // On va utiliser strtok, qui modifie la string
     // On utilise donc une copie
-    //pthread_mutex_lock(&(cache->mutex));
     char *indexStr = malloc(strlen(cache->rootDirIndex) + 1);
     strcpy(indexStr, cache->rootDirIndex);
-    //pthread_mutex_lock(&(cache->mutex));
 
     // FUSE s'occupe deja des pseudo-fichiers "." et "..",
     // donc on se contente de lister le fichier d'index qu'on vient de recevoir
@@ -256,9 +237,17 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi) {
     struct cacheFichier *fhCache = trouverFichierEnCache(path, cache);
     pthread_mutex_unlock(&cache->mutex);
 
+    int sockfd;
+    if (ouvrirSocket(&sockfd, unixSockPath) == -1) {
+        printf("Erreur pour ouvrir le socket a l'ouverture d'un fichier.");
+        return -1;
+    }
+    msgRep repHeader = {10, 10};
     if (fhCache == NULL) {
         // on essaye d'obtenir le fichier
-        // envoyerMessage(, )
+        msgReq header = {REQ_LIST, 0};
+        envoyerMessage(sockfd, &header, NULL);
+        read(sockfd, &repHeader, sizeof(msgRep));
     }
 
     return -1;

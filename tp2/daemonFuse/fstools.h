@@ -26,7 +26,6 @@ struct cacheData{
 	char* rootDirIndex;
 	struct cacheFichier *firstFile;
 	pthread_mutex_t mutex;
-	int socket;
 };
 
 // ATTENTION : toutes les fonctions suivantes supposent que vous avez _déjà_ l'accès exclusif au cache
