@@ -334,7 +334,7 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
         size = fileSize - offset;
     }
 
-    strncpy(buf, file->data + offset, size);
+    memcpy(buf, file->data + offset, size);
 
     return size;
 }
