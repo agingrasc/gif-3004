@@ -27,6 +27,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/time.h>
+
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
 #endif
@@ -51,32 +52,32 @@ int fhNum = 10;
 // Cette fonction initialise le cache et l'insère dans le contexte de FUSE, qui sera
 // accessible à toutes les autres fonctions.
 // Elle est déjà implémentée pour vous, mais vous pouvez la modifier au besoin.
-void* setrfs_init(struct fuse_conn_info *conn){
-	struct cacheData cache;
-	cache.rootDirIndex = NULL;
-	cache.firstFile = NULL;
-	pthread_mutex_init(&(cache.mutex), NULL);
-	char *cachePtr = malloc(sizeof cache);
-	memcpy(cachePtr, &cache, sizeof cache);
+void *setrfs_init(struct fuse_conn_info *conn) {
+    struct cacheData cache;
+    cache.rootDirIndex = NULL;
+    cache.firstFile = NULL;
+    pthread_mutex_init(&(cache.mutex), NULL);
+    char *cachePtr = malloc(sizeof cache);
+    memcpy(cachePtr, &cache, sizeof cache);
 
-	// init socket
-	int sockfd;
+    // init socket
+    int sockfd;
     if ((sockfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("socket() failure");
-		exit(1);
-	}
+        perror("socket() failure");
+        exit(1);
+    }
 
-	struct sockaddr_un servaddr;
-	memset(&servaddr, 0, sizeof servaddr);
-	servaddr.sun_family = AF_UNIX;
-	memcpy(servaddr.sun_path, unixSockPath, sizeof servaddr.sun_path);
-	if (connect(sockfd, (struct sockaddr*) &servaddr, sizeof(servaddr)) < 0) {
-		perror("conenct() failure");
-		exit(1);
-	}
+    struct sockaddr_un servaddr;
+    memset(&servaddr, 0, sizeof servaddr);
+    servaddr.sun_family = AF_UNIX;
+    memcpy(servaddr.sun_path, unixSockPath, sizeof servaddr.sun_path);
+    if (connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
+        perror("conenct() failure");
+        exit(1);
+    }
 
-	cache.socket = sockfd;
-	return (void*)cachePtr;
+    cache.socket = sockfd;
+    return (void *) cachePtr;
 }
 
 
@@ -96,113 +97,134 @@ void* setrfs_init(struct fuse_conn_info *conn){
 //
 // Cette fonction montre également comment récupérer le _contexte_ du système de fichiers. Vous pouvez utiliser ces
 // lignes dans d'autres fonctions.
-static int setrfs_getattr(const char *path, struct stat *stbuf)
-{
-	// On récupère le contexte
-	struct fuse_context *context = fuse_get_context();
+static int setrfs_getattr(const char *path, struct stat *stbuf) {
+    // On récupère le contexte
+    struct fuse_context *context = fuse_get_context();
 
-	// Si vous avez enregistré dans données dans setrfs_init, alors elles sont disponibles dans context->private_data
-	// Ici, voici un exemple où nous les utilisons pour donner le bon propriétaire au fichier (l'utilisateur courant)
-	stbuf->st_uid = context->uid;		// On indique l'utilisateur actuel comme proprietaire
-	stbuf->st_gid = context->gid;		// Idem pour le groupe
+    // Si vous avez enregistré dans données dans setrfs_init, alors elles sont disponibles dans context->private_data
+    // Ici, voici un exemple où nous les utilisons pour donner le bon propriétaire au fichier (l'utilisateur courant)
+    stbuf->st_uid = context->uid;        // On indique l'utilisateur actuel comme proprietaire
+    stbuf->st_gid = context->gid;        // Idem pour le groupe
 
-	// TODO
-	stbuf->st_mode = S_IFREG | ALL_PERMISSION;
-	stbuf->st_size = 1;
+    stbuf->st_dev = 0;
+    stbuf->st_ino = 0;
+    stbuf->st_nlink = 1;
+    stbuf->st_rdev = 0;
+    stbuf->st_blksize = 0;
+    stbuf->st_blocks = 0;
+    printf("getattr: %s\n", path);
+
+    // TODO
+    stbuf->st_mode = 0777;
+    if (strcmp(path, "/") == 0) {
+        stbuf->st_nlink = 2;
+        stbuf->st_size = 0;
+        stbuf->st_mode |= S_IFDIR;
+    } else {
+        stbuf->st_size = 1;
+        stbuf->st_mode |= S_IFREG;
+    }
+
+    return 0;
 }
 
 
 // Cette fonction est utilisée pour lister un dossier. Elle est déjà implémentée pour vous
 static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-						  off_t offset, struct fuse_file_info *fi)
-{
-	DIR *dp;
-	struct dirent *de;
-	printf("setrfs_readdir : %s\n", path);
-	(void) offset;
-	(void) fi;
+                          off_t offset, struct fuse_file_info *fi) {
+    DIR *dp;
+    struct dirent *de;
+    printf("setrfs_readdir : %s\n", path);
+    (void) offset;
+    (void) fi;
 
-	struct fuse_context *context = fuse_get_context();
-	struct cacheData *cache = (struct cacheData*)context->private_data;
-	if(cache->rootDirIndex == NULL){
-		// Le listing du repertoire n'est pas en cache
-		// On doit faire une requete
-		// On ouvre un socket
-		int sock = socket(AF_UNIX, SOCK_STREAM, 0);
-		if(sock == -1){
-			perror("Impossible d'initialiser le socket UNIX");
-			return -1;
-		}
+    struct fuse_context *context = fuse_get_context();
+    struct cacheData *cache = (struct cacheData *) context->private_data;
+    if (cache->rootDirIndex == NULL) {
+        // Le listing du repertoire n'est pas en cache
+        // On doit faire une requete
+        // On ouvre un socket
+        int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (sock == -1) {
+            perror("Impossible d'initialiser le socket UNIX");
+            return -1;
+        }
 
-		// Ecriture des parametres du socket
-		struct sockaddr_un sockInfo;
-		memset(&sockInfo, 0, sizeof sockInfo);
-		sockInfo.sun_family = AF_UNIX;
-		strncpy(sockInfo.sun_path, unixSockPath, sizeof sockInfo.sun_path - 1);
+        // Ecriture des parametres du socket
+        struct sockaddr_un sockInfo;
+        memset(&sockInfo, 0, sizeof sockInfo);
+        sockInfo.sun_family = AF_UNIX;
+        strncpy(sockInfo.sun_path, unixSockPath, sizeof sockInfo.sun_path - 1);
 
-		// Connexion
-		if(connect(sock, (const struct sockaddr *) &sockInfo, sizeof sockInfo) < 0){
-			perror("Erreur connect");
-			exit(1);
-		}
+        printf("Gonna open socket\n");
 
-		// Formatage et envoi de la requete
-		//size_t len = strlen() + 1;		// +1 pour le caractere NULL de fin de chaine
-		struct msgReq req;
-		req.type = REQ_LIST;
-		req.sizePayload = 0;
-		int octetsTraites = envoyerMessage(sock, &req, NULL);
+        // Connexion
+        if (connect(sock, (const struct sockaddr *) &sockInfo, sizeof sockInfo) < 0) {
+            perror("Erreur connect");
+            exit(1);
+        }
 
-		// On attend et on recoit le fichier demande
-		struct msgRep rep;
-		octetsTraites = read(sock, &rep, sizeof rep);
-		if(octetsTraites == -1){
-			perror("Erreur en effectuant un read() sur un socket pret");
-			exit(1);
-		}
-		if(VERBOSE)
-			printf("Lecture de l'en-tete de la reponse sur le socket %i\n", sock);
+        printf("Socket opened\n");
+        // Formatage et envoi de la requete
+        //size_t len = strlen() + 1;		// +1 pour le caractere NULL de fin de chaine
+        struct msgReq req;
+        req.type = REQ_LIST;
+        req.sizePayload = 0;
+        int octetsTraites = envoyerMessage(sock, &req, NULL);
 
-		pthread_mutex_lock(&(cache->mutex));
-		cache->rootDirIndex = malloc(rep.sizePayload + 1);
-		cache->rootDirIndex[rep.sizePayload] = 0;		// On s'assure d'avoir le caractere nul a la fin de la chaine
-		unsigned int totalRecu = 0;
-		// Il se peut qu'on ait a faire plusieurs lectures si le fichier est gros
-		while(totalRecu < rep.sizePayload){
-			octetsTraites = read(sock, cache->rootDirIndex + totalRecu, rep.sizePayload - totalRecu);
-			totalRecu += octetsTraites;
-		}
-		pthread_mutex_unlock(&(cache->mutex));
-	}
+        // On attend et on recoit le fichier demande
+        struct msgRep rep;
+        printf("Gonna read socket\n");
+        octetsTraites = read(sock, &rep, sizeof rep);
+        if (octetsTraites == -1) {
+            perror("Erreur en effectuant un read() sur un socket pret");
+            exit(1);
+        }
+        if (VERBOSE)
+            printf("Lecture de l'en-tete de la reponse sur le socket %i\n", sock);
+        printf("Socket read\n");
 
-	// On va utiliser strtok, qui modifie la string
-	// On utilise donc une copie
-	//pthread_mutex_lock(&(cache->mutex));
-	char *indexStr = malloc(strlen(cache->rootDirIndex) + 1);
-	strcpy(indexStr, cache->rootDirIndex);
-	//pthread_mutex_lock(&(cache->mutex));
+        printf("gonna get lock now\n");
+        pthread_mutex_lock(&(cache->mutex));
+        cache->rootDirIndex = malloc(rep.sizePayload + 1);
+        cache->rootDirIndex[rep.sizePayload] = 0;        // On s'assure d'avoir le caractere nul a la fin de la chaine
+        unsigned int totalRecu = 0;
+        // Il se peut qu'on ait a faire plusieurs lectures si le fichier est gros
+        while (totalRecu < rep.sizePayload) {
+            octetsTraites = read(sock, cache->rootDirIndex + totalRecu, rep.sizePayload - totalRecu);
+            totalRecu += octetsTraites;
+        }
+        pthread_mutex_unlock(&(cache->mutex));
+    }
 
-	// FUSE s'occupe deja des pseudo-fichiers "." et "..",
-	// donc on se contente de lister le fichier d'index qu'on vient de recevoir
+    // On va utiliser strtok, qui modifie la string
+    // On utilise donc une copie
+    //pthread_mutex_lock(&(cache->mutex));
+    char *indexStr = malloc(strlen(cache->rootDirIndex) + 1);
+    strcpy(indexStr, cache->rootDirIndex);
+    //pthread_mutex_lock(&(cache->mutex));
 
-	char *nomFichier = strtok(indexStr, "\n");		// On assume des fins de lignes UNIX
-	int countInode = 1;
-	while(nomFichier != NULL){
-		struct stat st;
-		memset(&st, 0, sizeof st);
-		st.st_ino = 1; 			// countInode++;
-		st.st_mode = (S_IFREG & S_IFMT) | 0777;	// Fichier regulier, permissions 777
-		//if(VERBOSE)
-		//	printf("Insertion du fichier %s dans la liste du repertoire\n", nomFichier);
-		if (filler(buf, nomFichier, &st, 0)){
-			perror("Erreur lors de l'insertion du fichier dans la liste du repertoire!");
-			break;
-		}
-		nomFichier = strtok(NULL, "\n");
-	}
-	free(nomFichier);
+    // FUSE s'occupe deja des pseudo-fichiers "." et "..",
+    // donc on se contente de lister le fichier d'index qu'on vient de recevoir
 
-	return 0;
+    char *nomFichier = strtok(indexStr, "\n");        // On assume des fins de lignes UNIX
+    int countInode = 1;
+    while (nomFichier != NULL) {
+        struct stat st;
+        memset(&st, 0, sizeof st);
+        st.st_ino = 1;            // countInode++;
+        st.st_mode = (S_IFREG & S_IFMT) | 0777;    // Fichier regulier, permissions 777
+        //if(VERBOSE)
+        //	printf("Insertion du fichier %s dans la liste du repertoire\n", nomFichier);
+        if (filler(buf, nomFichier, &st, 0)) {
+            perror("Erreur lors de l'insertion du fichier dans la liste du repertoire!");
+            break;
+        }
+        nomFichier = strtok(NULL, "\n");
+    }
+    free(nomFichier);
+
+    return 0;
 }
 
 
@@ -224,23 +246,22 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 // Petit truc : la signification exacte du file handle est laissée à la discrétion du système de fichier (vous).
 // Vous pouvez donc le choisir de la manière qui vous arrange le plus, en autant que cela respecte les conditions
 // énoncées plus haut. Rappelez-vous en particulier qu'un pointeur est unique...
-static int setrfs_open(const char *path, struct fuse_file_info *fi)
-{
-	// TODO
-    struct fuse_context* context = fuse_get_context();
-	struct cacheData* cache = (struct cacheData*) context->private_data;
+static int setrfs_open(const char *path, struct fuse_file_info *fi) {
+    // TODO
+    struct fuse_context *context = fuse_get_context();
+    struct cacheData *cache = (struct cacheData *) context->private_data;
 
-	// section critique
+    // section critique
     pthread_mutex_lock(&cache->mutex);
-	struct cacheFichier* fhCache = trouverFichierEnCache(path, cache);
-	pthread_mutex_unlock(&cache->mutex);
+    struct cacheFichier *fhCache = trouverFichierEnCache(path, cache);
+    pthread_mutex_unlock(&cache->mutex);
 
-	if (fhCache == NULL) {
-		// on essaye d'obtenir le fichier
-		// envoyerMessage(, )
-	}
+    if (fhCache == NULL) {
+        // on essaye d'obtenir le fichier
+        // envoyerMessage(, )
+    }
 
-
+    return -1;
 }
 
 
@@ -260,18 +281,19 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi)
 // N'oubliez pas que vous recevez le file handle dans la structure fuse_file_info. Vous n'êtes pas forcés de l'utiliser,
 // mais si vous y avez mis quelque chose d'utile, il est facile de le récupérer!
 static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
-					   struct fuse_file_info *fi)
-{
-	// TODO
+                       struct fuse_file_info *fi) {
+    // TODO
+    printf("read: %s\n", path);
+    return 0;
 }
 
 
 // Cette fonction est appelée lorsqu'un processus ferme un fichier (close).
 // Vous n'avez rien de particulier à produire comme résultat, mais vous devez vous assurer de libérer toute la mémoire
 // utilisée pour stocker ce fichier (pensez au buffer contenant son cache, son nom, etc.)
-static int setrfs_release(const char *path, struct fuse_file_info *fi)
-{
-	// TODO
+static int setrfs_release(const char *path, struct fuse_file_info *fi) {
+    // TODO
+    return 0;
 }
 
 
@@ -283,190 +305,175 @@ static int setrfs_release(const char *path, struct fuse_file_info *fi)
 ///////////////////////////////////////
 
 static int setrfs_write(const char *path, const char *buf, size_t size,
-						off_t offset, struct fuse_file_info *fi)
-{
-	int fd;
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_write\n");
+                        off_t offset, struct fuse_file_info *fi) {
+    int fd;
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_write\n");
 
-	return 0;
+    return 0;
 }
 
 
-static int setrfs_access(const char *path, int mask)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_access for path %s\n", path);
-	return 0;
+static int setrfs_access(const char *path, int mask) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_access for path %s\n", path);
+    return 0;
 }
 
-static int setrfs_readlink(const char *path, char *buf, size_t size)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_readlink\n");
-	return 0;
+static int setrfs_readlink(const char *path, char *buf, size_t size) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_readlink\n");
+    return 0;
 }
 
-static int setrfs_statfs(const char *path, struct statvfs *stbuf)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_statfs\n");
+static int setrfs_statfs(const char *path, struct statvfs *stbuf) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_statfs\n");
 
-	return 0;
+    return 0;
 }
 
 
-static int setrfs_mknod(const char *path, mode_t mode, dev_t rdev)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_mknod\n");
+static int setrfs_mknod(const char *path, mode_t mode, dev_t rdev) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_mknod\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_mkdir(const char *path, mode_t mode)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_mkdir\n");
+static int setrfs_mkdir(const char *path, mode_t mode) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_mkdir\n");
 
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_unlink(const char *path)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_unlink\n");
+static int setrfs_unlink(const char *path) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_unlink\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_rmdir(const char *path)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_rmdir\n");
+static int setrfs_rmdir(const char *path) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_rmdir\n");
 
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_symlink(const char *from, const char *to)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_symlink\n");
+static int setrfs_symlink(const char *from, const char *to) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_symlink\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_rename(const char *from, const char *to)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_rename\n");
+static int setrfs_rename(const char *from, const char *to) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_rename\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_link(const char *from, const char *to)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_link\n");
+static int setrfs_link(const char *from, const char *to) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_link\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_chmod(const char *path, mode_t mode)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_chmod\n");
+static int setrfs_chmod(const char *path, mode_t mode) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_chmod\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_chown(const char *path, uid_t uid, gid_t gid)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_chown\n");
+static int setrfs_chown(const char *path, uid_t uid, gid_t gid) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_chown\n");
 
-	return 0;
+    return 0;
 }
 
-static int setrfs_truncate(const char *path, off_t size)
-{
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_truncate\n");
+static int setrfs_truncate(const char *path, off_t size) {
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_truncate\n");
 
-	return 0;
+    return 0;
 }
 
 #ifdef HAVE_UTIMENSAT
 static int setrfs_utimens(const char *path, const struct timespec ts[2])
 {
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_utimens\n");
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_utimens\n");
 
-	return 0;
+    return 0;
 }
 #endif
 
 static int setrfs_fsync(const char *path, int isdatasync,
-						struct fuse_file_info *fi)
-{
-	/* Just a stub.	 This method is optional and can safely be left
-	   unimplemented */
+                        struct fuse_file_info *fi) {
+    /* Just a stub.	 This method is optional and can safely be left
+       unimplemented */
 
-	(void) path;
-	(void) isdatasync;
-	(void) fi;
-	printf("setrfs_fsync\n");
-	printf("#### NOT IMPLEMENTED! ####");
-	return 0;
+    (void) path;
+    (void) isdatasync;
+    (void) fi;
+    printf("setrfs_fsync\n");
+    printf("#### NOT IMPLEMENTED! ####");
+    return 0;
 }
 
 #ifdef HAVE_POSIX_FALLOCATE
 static int setrfs_fallocate(const char *path, int mode,
-			off_t offset, off_t length, struct fuse_file_info *fi)
+            off_t offset, off_t length, struct fuse_file_info *fi)
 {
-	int fd;
-	int res;
-	printf("#### NOT IMPLEMENTED! ####");
-	printf("setrfs_fallocate\n");
-	return 0
+    int fd;
+    int res;
+    printf("#### NOT IMPLEMENTED! ####");
+    printf("setrfs_fallocate\n");
+    return 0
 }
 #endif
 
 #ifdef HAVE_SETXATTR
 /* xattr operations are optional and can safely be left unimplemented */
 static int setrfs_setxattr(const char *path, const char *name, const char *value,
-			size_t size, int flags)
+            size_t size, int flags)
 {
 printf("#### NOT IMPLEMENTED! ####");
 printf("setrfs_setxattr\n");
 
-	return 0;
+    return 0;
 }
 
 static int setrfs_getxattr(const char *path, const char *name, char *value,
-			size_t size)
+            size_t size)
 {
 printf("#### NOT IMPLEMENTED! ####");
 printf("setrfs_getxattr\n");
 
-	return res;
+    return res;
 }
 
 static int setrfs_listxattr(const char *path, char *list, size_t size)
@@ -474,7 +481,7 @@ static int setrfs_listxattr(const char *path, char *list, size_t size)
 printf("#### NOT IMPLEMENTED! ####");
 printf("setrfs_listxattr\n");
 
-	return res;
+    return res;
 }
 
 static int setrfs_removexattr(const char *path, const char *name)
@@ -482,48 +489,47 @@ static int setrfs_removexattr(const char *path, const char *name)
 printf("#### NOT IMPLEMENTED! ####");
 printf("setrfs_removexattr\n");
 
-	return 0;
+    return 0;
 }
 #endif /* HAVE_SETXATTR */
 
 static struct fuse_operations setrfs_oper = {
-		.init 		= setrfs_init,
-		.getattr	= setrfs_getattr,
-		.access		= setrfs_access,
-		.readlink	= setrfs_readlink,
-		.readdir	= setrfs_readdir,
-		.mknod		= setrfs_mknod,
-		.mkdir		= setrfs_mkdir,
-		.symlink	= setrfs_symlink,
-		.unlink		= setrfs_unlink,
-		.rmdir		= setrfs_rmdir,
-		.rename		= setrfs_rename,
-		.link		= setrfs_link,
-		.chmod		= setrfs_chmod,
-		.chown		= setrfs_chown,
-		.truncate	= setrfs_truncate,
+        .init        = setrfs_init,
+        .getattr    = setrfs_getattr,
+        .access        = setrfs_access,
+        .readlink    = setrfs_readlink,
+        .readdir    = setrfs_readdir,
+        .mknod        = setrfs_mknod,
+        .mkdir        = setrfs_mkdir,
+        .symlink    = setrfs_symlink,
+        .unlink        = setrfs_unlink,
+        .rmdir        = setrfs_rmdir,
+        .rename        = setrfs_rename,
+        .link        = setrfs_link,
+        .chmod        = setrfs_chmod,
+        .chown        = setrfs_chown,
+        .truncate    = setrfs_truncate,
 #ifdef HAVE_UTIMENSAT
-		.utimens	= setrfs_utimens,
+        .utimens	= setrfs_utimens,
 #endif
-		.open		= setrfs_open,
-		.read		= setrfs_read,
-		.write		= setrfs_write,
-		.statfs		= setrfs_statfs,
-		.release	= setrfs_release,
-		.fsync		= setrfs_fsync,
+        .open        = setrfs_open,
+        .read        = setrfs_read,
+        .write        = setrfs_write,
+        .statfs        = setrfs_statfs,
+        .release    = setrfs_release,
+        .fsync        = setrfs_fsync,
 #ifdef HAVE_POSIX_FALLOCATE
-		.fallocate	= setrfs_fallocate,
+        .fallocate	= setrfs_fallocate,
 #endif
 #ifdef HAVE_SETXATTR
 .setxattr	= setrfs_setxattr,
-	.getxattr	= setrfs_getxattr,
-	.listxattr	= setrfs_listxattr,
-	.removexattr	= setrfs_removexattr,
+    .getxattr	= setrfs_getxattr,
+    .listxattr	= setrfs_listxattr,
+    .removexattr	= setrfs_removexattr,
 #endif
 };
 
-int main(int argc, char *argv[])
-{
-	umask(0);
-	return fuse_main(argc, argv, &setrfs_oper, NULL);
+int main(int argc, char *argv[]) {
+    umask(0);
+    return fuse_main(argc, argv, &setrfs_oper, NULL);
 }

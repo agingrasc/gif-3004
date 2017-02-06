@@ -98,21 +98,20 @@ int main(int argc, char* argv[]){
 
     // 2) Créez le socket en utilisant la fonction socket().
     //      Vérifiez si sa création a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
-    int sock_desc = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sock_desc < 0) {
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
         perror("socket() failure");
 	return 1;
     }
     // 3) Utilisez fcntl() pour mettre le socket en mode non-bloquant
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man fcntl pour plus de détails sur le champ à modifier
-    fcntl(sock_desc, F_SETFL, O_NONBLOCK);
+    fcntl(sock, F_SETFL, O_NONBLOCK);
 
     // 4) Faites un bind sur le socket
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man bind(2) pour plus de détails sur cette opération
-    int sock = bind(sock_desc, (struct sockaddr *)&un, sizeof(struct sockaddr_un));
-    if (sock < 0)
+    if (bind(sock, (struct sockaddr *)&un, sizeof(struct sockaddr_un)) < 0)
     {
         perror("bind() failure");
         return 1;
@@ -121,8 +120,7 @@ int main(int argc, char* argv[]){
     // 5) Mettez le socket en mode écoute (listen), en acceptant un maximum de MAX_CONNEXIONS en attente
     //      Vérifiez si l'opération a été effectuée avec succès, sinon quittez le processus en affichant l'erreur
     //      Voyez man listen pour plus de détails sur cette opération
-    sock = listen(sock_desc, MAX_CONNEXIONS);
-    if (sock < 0)
+    if (listen(sock, MAX_CONNEXIONS) < 0)
     {
         perror("listen() failed");
         return 1;
@@ -135,6 +133,9 @@ int main(int argc, char* argv[]){
     while(1){
         // On vérifie si de nouveaux clients attendent pour se connecter
         tacheRealisee = verifierNouvelleConnexion(reqList, MAX_CONNEXIONS, sock);
+        if (tacheRealisee > 0){
+            printf("New connection!");
+        }
 
         // On teste si un client vient de nous envoyer une requête
         // Si oui, on la traite
