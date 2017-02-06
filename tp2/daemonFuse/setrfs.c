@@ -83,6 +83,7 @@ void *setrfs_init(struct fuse_conn_info *conn) {
 static int setrfs_getattr(const char *path, struct stat *stbuf) {
     // On récupère le contexte
     struct fuse_context *context = fuse_get_context();
+    struct cacheData* cache = (cacheData *) context->private_data;
 
     // Si vous avez enregistré dans données dans setrfs_init, alors elles sont disponibles dans context->private_data
     // Ici, voici un exemple où nous les utilisons pour donner le bon propriétaire au fichier (l'utilisateur courant)
@@ -97,14 +98,19 @@ static int setrfs_getattr(const char *path, struct stat *stbuf) {
     stbuf->st_blocks = 0;
     printf("getattr: %s\n", path);
 
-    // TODO
+    // on determine la taille du fichier
+    cacheFichier* file = trouverFichierEnCache(path, cache);
+    size_t len = 1;
+    if (file != NULL) {
+        len = file->len;
+    }
     stbuf->st_mode = 0777;
     if (strcmp(path, "/") == 0) {
         stbuf->st_nlink = 2;
         stbuf->st_size = 0;
         stbuf->st_mode |= S_IFDIR;
     } else {
-        stbuf->st_size = 1;
+        stbuf->st_size = len;
         stbuf->st_mode |= S_IFREG;
     }
 
@@ -228,6 +234,7 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 // Vous pouvez donc le choisir de la manière qui vous arrange le plus, en autant que cela respecte les conditions
 // énoncées plus haut. Rappelez-vous en particulier qu'un pointeur est unique...
 static int setrfs_open(const char *path, struct fuse_file_info *fi) {
+    printf("open(%s)\n", path);
     // TODO
     struct fuse_context *context = fuse_get_context();
     struct cacheData *cache = (struct cacheData *) context->private_data;
@@ -242,12 +249,52 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi) {
         printf("Erreur pour ouvrir le socket a l'ouverture d'un fichier.");
         return -1;
     }
-    msgRep repHeader = {10, 10};
+    msgRep rep;
     if (fhCache == NULL) {
-        // on essaye d'obtenir le fichier
-        msgReq header = {REQ_LIST, 0};
+        // on essaye d'obtenir le fichier de l'ajouter a la cache
+        size_t pathLen = strlen(path);
+        msgReq header = {REQ_READ, pathLen};
         envoyerMessage(sockfd, &header, NULL);
-        read(sockfd, &repHeader, sizeof(msgRep));
+        write(sockfd, path, pathLen);
+        int bytesRead = read(sockfd, &rep, sizeof(msgRep));
+        if (bytesRead == -1) {
+            perror("Erreur lecture sur socket pret.");
+            exit(1);
+        }
+        if (rep.status == STATUS_ERREUR_TELECHARGEMENT) {
+            printf("Erreur telechargement.\n");
+            return -1;
+        }
+
+        cacheFichier* file = malloc(sizeof(cacheFichier));
+        memset(file, 0, sizeof(cacheFichier));
+
+        char* name = malloc(pathLen*sizeof(char));
+        file->nom = name;
+        strncpy(file->nom, path, pathLen);
+        // lecture du contenu
+        size_t byteToRead = rep.sizePayload;
+        char* content = malloc(bytesRead + 1);
+        content[bytesRead] = NULL;
+        file->data = content;
+        size_t byteProcessed = 0;
+        while (byteProcessed < byteToRead) {
+            byteProcessed += read(sockfd, file->data + byteProcessed, byteToRead - byteProcessed);
+        }
+
+        // ecriture des props du fichier dans la structure et insertion dans la cache
+        file->len = byteToRead;
+        file->countOpen = 1;
+        file->prev = NULL;
+        file->next = NULL;
+
+        // section critique pour manipuler la cache
+        pthread_mutex_lock(&cache->mutex);
+        insererFichier(file, cache);
+        pthread_mutex_unlock(&cache->mutex);
+
+        fi->fh = file;
+        return 0;
     }
 
     return -1;
@@ -271,9 +318,22 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi) {
 // mais si vous y avez mis quelque chose d'utile, il est facile de le récupérer!
 static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
+
+    struct fuse_context *context = fuse_get_context();
+    struct cacheData *cache = (struct cacheData *) context->private_data;
     // TODO
+    cacheFichier* file = fi->fh;
+
+    // correction de la taille de lecture
+    size_t fileSize = file->len;
+    if (size - offset > fileSize) {
+        size = fileSize - offset;
+    }
+
+    strncpy(buf, file->data + offset, size);
+
     printf("read: %s\n", path);
-    return 0;
+    return size;
 }
 
 

@@ -10,23 +10,23 @@
 // Cette structure est utilisée pour stocker un fichier en mémoire
 // Le stockage est fait sous la forme d'une liste chaînée; des fonctions vous
 // sont proposées pour utiliser ce cache plus facilement.
-struct cacheFichier{
+typedef struct cacheFichier{
 	char* nom;                     // Nom du fichier
 	char* data;                    // Données contenues dans le fichier
 	size_t len;                    // Longueur des données
 	unsigned int countOpen;        // Nombre de programmes ayant ouvert ce fichier
 	struct cacheFichier *prev;     // Pointeur vers le fichier précédent dans la liste chaînée
 	struct cacheFichier *next;     // Pointeur vers le fichier suivant dans la liste chaînée
-};
+} cacheFichier;
 
 // Structure centrale du cache, contenant l'information sur les noms des fichiers du répertoire
 // ainsi que sur le début de la liste chaînée.
 // Contient également un mutex utilisé pour synchroniser les accès au cache entre les threads.
-struct cacheData{
+typedef struct cacheData{
 	char* rootDirIndex;
 	struct cacheFichier *firstFile;
 	pthread_mutex_t mutex;
-};
+} cacheData;
 
 // ATTENTION : toutes les fonctions suivantes supposent que vous avez _déjà_ l'accès exclusif au cache
 // (en ayant verrouillé son mutex)

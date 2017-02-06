@@ -27,7 +27,7 @@ int ouvrirSocket(int* sockfd, char addrPath[]) {
     //ouverture du socket et mise en cache
     *sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (sockfd == -1) {
-        perror("Impossible d'initialiser le socket UNIX");
+        perror("Impossible d'initialiser le socket UNIX\n");
         return -1;
     }
 
@@ -42,6 +42,6 @@ int ouvrirSocket(int* sockfd, char addrPath[]) {
         perror("Erreur de connexion");
         exit(1);
     }
-    printf("Socket ouvert!");
+    printf("Socket ouvert!\n");
     return 0;
 }
