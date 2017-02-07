@@ -39,3 +39,26 @@ void retireFichier(struct cacheFichier *infoFichier, struct cacheData *cache){
         infoFichier->next->prev = infoFichier->prev;
     free(infoFichier);
 }
+
+int checkPathExistence(const char* path, cacheData* cache) {
+
+    //si rootDirIndex n'est pas rempli, on assume que oui par defense
+    if (cache->rootDirIndex == NULL) {
+        return 1;
+    }
+
+    char *indexStr = malloc(strlen(cache->rootDirIndex) + 1);
+    strcpy(indexStr, cache->rootDirIndex);
+
+    char *nomFichier = strtok(indexStr, "\n");        // On assume des fins de lignes UNIX
+    int countInode = 1;
+    while (nomFichier != NULL) {
+        if (strcmp(nomFichier, path+1) == 0)
+        {
+            return 1;
+        }
+        nomFichier = strtok(NULL, "\n");
+    }
+    free(nomFichier);
+    return 0;
+}

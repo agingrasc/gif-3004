@@ -43,11 +43,7 @@
 
 #include "fstools.h"
 
-#define ALL_PERMISSION S_IRWXU | S_IRWXG | S_IRWXO
-
 const char unixSockPath[] = "/tmp/unixsocket";
-
-int fhNum = 10;
 
 // Cette fonction initialise le cache et l'insère dans le contexte de FUSE, qui sera
 // accessible à toutes les autres fonctions.
@@ -64,22 +60,6 @@ void *setrfs_init(struct fuse_conn_info *conn) {
 }
 
 
-// Cette fonction est appelée pour obtenir les attributs d'un fichier
-// Voyez la page man stat(2) pour des détails sur la structure 'stat' que vous devez remplir
-// Beaucoup de champs n'ont pas de sens dans le contexte du TP, par exemple le numéro d'inode ou le numéro du device :
-// dans ces cas, initialisez ces valeurs à 0.
-// Il est TRÈS important de remplir correctement les champs suivants :
-// - st_mode : il contient les permissions du fichier ou dossier (accordez simplement toutes les permissions à tous),
-//				mais aussi le type de fichier. C'est ici que vous devez indiquer à FUSE si le chemin qu'il vous donne
-//				est un dossier ou un fichier.
-// - st_size : de manière générale, vous pouvez renvoyer une valeur par défaut (par exemple 1) dans ce champ. Toutefois,
-//				si le fichier est ouvert et en cours de lecture, vous _devez_ renvoyer la vraie taille du fichier, car
-//				FUSE utilise cette information pour déterminer si la lecture est terminée, _peu importe_ ce que renvoie
-//				votre fonction read() implémentée plus bas...
-//				Utilisez le fichier mis en cache pour obtenir sa taille en octets dans ce dernier cas.
-//
-// Cette fonction montre également comment récupérer le _contexte_ du système de fichiers. Vous pouvez utiliser ces
-// lignes dans d'autres fonctions.
 static int setrfs_getattr(const char *path, struct stat *stbuf) {
     printf("getattr: %s\n", path);
     // On récupère le contexte
@@ -217,42 +197,35 @@ static int setrfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 }
 
 
-// Cette fonction est appelée lorsqu'un processus ouvre un fichier. Dans ce cas-ci, vous devez :
-// 1) si le fichier est déjà dans le cache, retourner avec succès en mettant à jour le file handle (champ fh)
-//		dans la structure fuse_file_info
-// 2) si le fichier n'est pas dans le cas, envoyer une requête au serveur pour le télécharger, puis l'insérer dans
-//		le cache et effectuer l'étape 1).
-// 3) il se peut que le fichier n'existe tout simplement pas. Dans ce cas, vous devez renvoyer le code d'erreur approprié.
-//
-// Voir man open(2) pour les détails concernant ce que cette fonction doit faire et comment renvoyer une erreur
-// (par exemple dans le cas d'un fichier non existant).
-//
-// Notez en particulier que le file handle (aussi appelé file descriptor) doit satisfaire les conditions suivantes :
-//	* Il doit être un entier non signé
-//	* Il doit être _différent_ pour chaque fichier ouvert. Si un fichier est fermé (en utilisant close), alors il
-//		est valide de réutiliser son file descriptor (mais vous n'y êtes pas obligés)
-//	* Il ne doit pas valoir 0, 1 ou 2, qui sont déjà utilisés pour stdin, stdout et stderr.
-// Petit truc : la signification exacte du file handle est laissée à la discrétion du système de fichier (vous).
-// Vous pouvez donc le choisir de la manière qui vous arrange le plus, en autant que cela respecte les conditions
-// énoncées plus haut. Rappelez-vous en particulier qu'un pointeur est unique...
 static int setrfs_open(const char *path, struct fuse_file_info *fi) {
-    printf("open(%s)\n", path);
 
     struct fuse_context *context = fuse_get_context();
-    struct cacheData *cache = (struct cacheData *) context->private_data;
+    cacheData *cache = (cacheData *) context->private_data;
+
+    // 0 si le path est pas dans l'index
+    if (checkPathExistence(path, cache) == 0)
+    {
+        errno = EACCES;
+        return -1;
+    }
+
+    printf("\nopen(%s)\n", path);
 
     // section critique
     pthread_mutex_lock(&cache->mutex);
     struct cacheFichier *fhCache = trouverFichierEnCache(path, cache);
     pthread_mutex_unlock(&cache->mutex);
 
+    // on ouvre un socket
     int sockfd;
     if (ouvrirSocket(&sockfd, unixSockPath) == -1) {
         printf("Erreur pour ouvrir le socket a l'ouverture d'un fichier.");
         return -1;
     }
+
     msgRep rep;
     if (fhCache == NULL) {
+        printf("mise en cache de (%s)\n", path);
         // on essaye d'obtenir le fichier de l'ajouter a la cache
         size_t pathLen = strlen(path);
         msgReq header = {REQ_READ, pathLen};
@@ -299,33 +272,19 @@ static int setrfs_open(const char *path, struct fuse_file_info *fi) {
         fi->fh = file;
         return 0;
     }
-
+    else {
+        // le fichier est deja en cache, on se contente de le retourner
+        fi->fh = fhCache;
+        fhCache->countOpen++;
+    }
+    // nous ne devrions pas frapper cette ligne logiquement
     return -1;
 }
 
 
-// Cette fonction est appelée lorsqu'un processus lit un fichier après l'avoir ouvert.
-// FUSE s'occupe déjà de vous redonner la structure fuse_file_info que vous devez avoir remplie dans setrfs_open()
-// Les autres paramètres d'entrée sont la taille maximale à lire et le décalage (offset) du début de la lecture
-// par rapport au début du fichier.
-// Vous devez :
-// 1) Vérifier que la taille de lecture demandée ne dépasse pas les limites du fichier, compte tenu du décalage
-// 2) Si oui, réduire la taille pour lire le reste du fichier
-// 3) Copier le même nombre d'octets depuis le cache vers le pointeur buf
-// 4) Retourner le nombre d'octets copiés
-//
-// Voir man read(2) pour plus de détails sur cette fonction. En particulier, notez que cette fonction peut retourner
-// _moins_ d'octets que ce que demandé, mais ne peut en aucun cas en retourner _plus_.
-//
-// N'oubliez pas que vous recevez le file handle dans la structure fuse_file_info. Vous n'êtes pas forcés de l'utiliser,
-// mais si vous y avez mis quelque chose d'utile, il est facile de le récupérer!
 static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
                        struct fuse_file_info *fi) {
-
-    printf("read: %s\n", path);
-    struct fuse_context *context = fuse_get_context();
-    struct cacheData *cache = (struct cacheData *) context->private_data;
-    // TODO
+    printf("\nread: %s\n", path);
     cacheFichier* file = fi->fh;
 
     // correction de la taille de lecture
@@ -340,17 +299,17 @@ static int setrfs_read(const char *path, char *buf, size_t size, off_t offset,
 }
 
 
-// Cette fonction est appelée lorsqu'un processus ferme un fichier (close).
-// Vous n'avez rien de particulier à produire comme résultat, mais vous devez vous assurer de libérer toute la mémoire
-// utilisée pour stocker ce fichier (pensez au buffer contenant son cache, son nom, etc.)
 static int setrfs_release(const char *path, struct fuse_file_info *fi) {
-    printf("release: %s\n", path);
-    struct fuse_context* context = fuse_get_context();
-    cacheData* cache = (cacheData*) context->private_data;
+    printf("\nrelease: %s\n", path);
+    struct fuse_context *context = fuse_get_context();
+    cacheData *cache = (cacheData *) context->private_data;
 
     pthread_mutex_lock(&cache->mutex);
-    cacheFichier* file = fi->fh;
-    retireFichier(file, cache);
+    cacheFichier *file = fi->fh;
+    file->countOpen--;
+    if (file->countOpen <= 0) {
+        retireFichier(file, cache);
+    }
     pthread_mutex_unlock(&cache->mutex);
 
     return 0;

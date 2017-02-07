@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 // pthread pour les mutex
 #include <pthread.h>
 
@@ -46,5 +47,8 @@ void insererFichier(struct cacheFichier *infoFichier, struct cacheData *cache);
 // Retire un fichier du cache : attention, cette fonction ne vérifie pas que plus personne n'utilise
 // ce fichier (en vérifiant que countOpen == 0).
 void retireFichier(struct cacheFichier *infoFichier, struct cacheData *cache);
+
+// Retourne 1 si le path est dans l'index, sinon 0
+int checkPathExistence(const char* path, cacheData* cache);
 
 #endif
