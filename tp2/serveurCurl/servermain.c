@@ -47,23 +47,42 @@ void printLine(int length){
 void gereSignal(int signo) {
     // Fonction affichant des statistiques sur les tâches en cours
     // lorsque SIGUSR1 (et _seulement_ SIGUSR1) est reçu
-    printLine(58);
-    printf("| %2s | %24s | %7s | %12s |\n", "#", "Status", "PID", "File");
-    printLine(58);
+    printLine(60);
+    printf("| %2s | %26s | %7s | %12s |\n", "#", "Status", "PID", "File");
+    printLine(60);
     if (signo == SIGUSR1){
         for(int i = 0; i<MAX_CONNEXIONS; i++){
             const char* status = statusDesc[reqList[i].status];
             pid_t pid = reqList[i].pid;
+            struct msgReq req;
 
-            char fichier[reqList[i].len+1];
-            fichier[reqList[i].len] = '\0';
-            memcpy(fichier, reqList[i].buf, reqList[i].len);
+            char* fname; 
+            if (reqList[i].status >= 2){
+                char index[] = "index.txt";
+                memcpy(&req, reqList[i].buf, sizeof req);
+                size_t allocsize = (req.type == REQ_LIST) ? (sizeof index) : (req.sizePayload+1);
+                fname = malloc(allocsize);
 
-            printf("| %2d | %24s | %7d | %12s |\n", i, status, pid, fichier);
+                if(req.type == REQ_LIST){
+                    strncpy(fname, index, sizeof index);
+                }
+                else if(req.type == REQ_READ){
+                    strncpy(fname, reqList[i].buf + sizeof(req), req.sizePayload);
+                    fname[allocsize] = '\0';
+                }
+            }
+            else{
+                fname = malloc(1);
+                *fname = '\0';
+            }
+
+            printf("| %2d | %26s | %7d | %12s |\n", i, status, pid, fname);
+
+            free(fname);
         }
     }
 
-    printLine(58);
+    printLine(60);
 }
 
 

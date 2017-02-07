@@ -81,8 +81,13 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                         exit(1);
                     }
 
+
                     memcpy(&req, buffer, sizeof req);
                     buffer = realloc(buffer, sizeof(req) + req.sizePayload);
+
+                    reqList[i].buf = buffer;
+                    reqList[i].len = sizeof(req);
+
                     octetsTraites = read(reqList[i].fdSocket, buffer + sizeof(req), req.sizePayload);
                     if(VERBOSE){
                         printf("\t%i octets lus au total\n", req.sizePayload + sizeof req);
