@@ -81,7 +81,6 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                         exit(1);
                     }
 
-
                     memcpy(&req, buffer, sizeof req);
                     buffer = realloc(buffer, sizeof(req) + req.sizePayload);
 
@@ -104,8 +103,6 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                         exit(EXIT_FAILURE);
                     }
 
-                    
-
                     // Une fois le pipe initialisé, vous devez effectuer un fork, à l'aide de la fonction du même nom
                     // Cela divisera votre processus en deux nouveaux processus, un parent et un enfant.
                     // - Dans le processus enfant, vous devez appeler la fonction executeRequete() en lui donnant
@@ -126,6 +123,7 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                     if (cpid == 0) {    /* Child reads from pipe */
                         close(pipefd[0]);          /* Close unused write end */
                         executeRequete(pipefd[1], buffer);
+                        free(reqList[i].buf);
                         reqList[i].buf = buffer;
                         reqList[i].len = sizeof(req) + req.sizePayload;
                         close(pipefd[1]);
