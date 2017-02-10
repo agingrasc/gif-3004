@@ -38,7 +38,7 @@ const char* statusDesc[] = {"Inoccupe", "Connexion client etablie", "En cours de
 // Contient les requetes en cours de traitement
 struct requete reqList[MAX_CONNEXIONS];
 
-void printLine(int length){
+void printDashLine(int length){
     for(int i = 0; i < length; i++)
         printf("—");
     printf("\n");
@@ -47,9 +47,9 @@ void printLine(int length){
 void gereSignal(int signo) {
     // Fonction affichant des statistiques sur les tâches en cours
     // lorsque SIGUSR1 (et _seulement_ SIGUSR1) est reçu
-    printLine(60);
+    printDashLine(60);
     printf("| %2s | %26s | %7s | %12s |\n", "#", "Status", "PID", "File");
-    printLine(60);
+    printDashLine(60);
     if (signo == SIGUSR1){
         for(int i = 0; i<MAX_CONNEXIONS; i++){
             const char* status = statusDesc[reqList[i].status];
@@ -59,7 +59,7 @@ void gereSignal(int signo) {
             char* fname; 
             if (reqList[i].status >= 2){
                 char index[] = "index.txt";
-                memcpy(&req, reqList[i].buf, sizeof req);
+                memcpy(&req, reqList[i].req, sizeof req);
                 size_t allocsize = (req.type == REQ_LIST) ? (sizeof index) : (req.sizePayload+1);
                 fname = malloc(allocsize);
 
@@ -67,8 +67,8 @@ void gereSignal(int signo) {
                     strncpy(fname, index, sizeof index);
                 }
                 else if(req.type == REQ_READ){
-                    strncpy(fname, reqList[i].buf + sizeof(req), req.sizePayload);
-                    fname[allocsize] = '\0';
+                    strncpy(fname, reqList[i].req + sizeof(req), req.sizePayload);
+                    fname[allocsize-1] = '\0';
                 }
             }
             else{
@@ -82,7 +82,7 @@ void gereSignal(int signo) {
         }
     }
 
-    printLine(60);
+    printDashLine(60);
 }
 
 

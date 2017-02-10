@@ -19,6 +19,7 @@ struct requete{
         int fdPipe;         // Si un processus enfant est lancé, descripteur de fichier du bout de lecture du pipe
         pid_t pid;          // Si un processus enfant est lancé, ID de ce processus
         char* buf;          // Si les données sont prêtes, pointe vers le buffer contenant ces données
+        char* req;          // Contient la requete, histoire d'avoir le nom de fichier facilement
         size_t len;         // Si les données sont prêtes, contient la longueur des données (en octets)
 };
 

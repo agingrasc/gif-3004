@@ -84,14 +84,17 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                     memcpy(&req, buffer, sizeof req);
                     buffer = realloc(buffer, sizeof(req) + req.sizePayload);
 
-                    reqList[i].buf = buffer;
-                    reqList[i].len = sizeof(req);
+                    //reqList[i].buf = buffer;
+                    //reqList[i].len = sizeof(req);
 
                     octetsTraites = read(reqList[i].fdSocket, buffer + sizeof(req), req.sizePayload);
                     if(VERBOSE){
                         printf("\t%i octets lus au total\n", req.sizePayload + sizeof req);
                         printf("\tContenu de la requete : %s\n", buffer + sizeof(req));
                     }
+
+                    reqList[i].req = realloc(reqList[i].req, sizeof(req) + req.sizePayload);
+                    memcpy(reqList[i].req, buffer, sizeof(req) + req.sizePayload);
 
                     // Ici, vous devez tout d'abord initialiser un nouveau pipe à l'aide de la fonction pipe()
                     // Voyez man pipe pour plus d'informations sur son fonctionnement
@@ -123,9 +126,9 @@ int traiterConnexions(struct requete reqList[], int maxlen){
                     if (cpid == 0) {    /* Child reads from pipe */
                         close(pipefd[0]);          /* Close unused write end */
                         executeRequete(pipefd[1], buffer);
-                        free(reqList[i].buf);
+                        /*free(reqList[i].buf);
                         reqList[i].buf = buffer;
-                        reqList[i].len = sizeof(req) + req.sizePayload;
+                        reqList[i].len = sizeof(req) + req.sizePayload;*/
                         close(pipefd[1]);
                         _exit(EXIT_SUCCESS);
                     } else {            /* Parent writes argv[1] to pipe */
@@ -219,7 +222,7 @@ int traiterTelechargements(struct requete reqList[], int maxlen){
 
                     reqList[i].len = payload_size;
                     reqList[i].buf = realloc(reqList[i].buf, payload_size);
-                    memcpy(reqList[i].buf, buffer, payload_size); //Might be faster to realloc before, but that might be DEADLY
+                    memcpy(reqList[i].buf, buffer, payload_size); //Might be faster to realloc before, but that might be DEADLY.
                     reqList[i].status = REQ_STATUS_READYTOSEND;
 
                     free(buffer);
