@@ -1,6 +1,10 @@
 #ifndef ALLOC_MEM_H
 #define ALLOC_MEM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -21,5 +25,8 @@ void* tempsreel_malloc(size_t taille);
 
 void tempsreel_free(void* ptr);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
