@@ -15,6 +15,7 @@ add_definitions(-D__cpluscplus)
 
 set(RTOS_MEMORY_SRC
         allocateurMemoire.c
+        commMemoirePartagee.c
 )
 
 set(DECODER_SRC
@@ -22,7 +23,7 @@ set(DECODER_SRC
         utils.c
         jpgd.cpp
 )
-set_source_files_properties(${DECODER_SRC} PROPERTIES LANGUAGE CXX)
+set_source_files_properties(${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX)
 
 add_library(rtos_malloc ${RTOS_MEMORY_SRC})
 add_executable(decodeur ${DECODER_SRC})
