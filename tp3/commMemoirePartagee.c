@@ -61,8 +61,8 @@ int initMemoirePartageeEcrivain(const char* identifiant,
 
 // Appelé par le lecteur pour se mettre en attente d'un résultat
 int attenteLecteur(struct memPartage *zone){
-    while(zone->header->frameWriter == zone->header->frameReader);
-    pthread_mutex_lock(&zone->header->mutex);
+    while(zone->header->frameWriter == zone->header->frameReader); //Might not be the right condition
+    return pthread_mutex_lock(&zone->header->mutex);
 }
 
 // Fonction spéciale similaire à attenteLecteur, mais asynchrone : cette fonction ne bloque jamais.
@@ -71,14 +71,13 @@ int attenteLecteurAsync(struct memPartage *zone){
     if(zone->header->frameWriter == zone->header->frameReader)
         return 1;
 
-    if(pthread_mutex_trylock(&zone->header->mutex)){
-
-    }
+    return pthread_mutex_trylock(&zone->header->mutex);
     
 }
 
 // Appelé par l'écrivain pour se mettre en attente de la lecture du résultat précédent par un lecteur
 int attenteEcrivain(struct memPartage *zone){
-
+    while(zone->header->frameWriter == zone->header->frameReader); //Might not be the right condition
+    return pthread_mutex_lock(&zone->header->mutex);
 }
 
