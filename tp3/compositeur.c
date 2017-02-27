@@ -177,9 +177,27 @@ void ecrireImage(const int position, const int total,
 
 int main(int argc, char* argv[])
 {
-    // TODO
-    // ÉCRIVEZ ICI votre code d'analyse des arguments du programme et d'initialisation des zones mémoire partagées
-    int nbrActifs;      // Après votre initialisation, cette variable DOIT contenir le nombre de flux vidéos actifs (de 1 à 4 inclusivement).
+    int nbrActifs = 0;      // Après votre initialisation, cette variable DOIT contenir le nombre de flux vidéos actifs (de 1 à 4 inclusivement).
+    int core = -1;
+    int opt;
+    while ((opt = getopt(argc, argv, "a:")) != -1) {
+               switch (opt) {
+               case 'a':
+                   core = atoi(optarg);
+                   break;
+               default: /* '?' */
+                   fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",
+                           argv[0]);
+                   exit(EXIT_FAILURE);
+               }
+    }
+
+    nbrActifs = argc - optind;
+
+    if (nbrActifs < 1 || nbrActifs > 4)
+        fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",
+                argv[0]);
+        exit(EXIT_FAILURE);
 
     // Initialisation des structures nécessaires à l'affichage
     long int screensize = 0;
@@ -261,7 +279,8 @@ int main(int argc, char* argv[])
             // 427x240 (voir le commentaire en haut du document).
         
             // Exemple d'appel à ecrireImage (n'oubliez pas de remplacer les arguments commençant par A_REMPLIR!)
-            ecrireImage(A_REMPLIR_POSITION_ACTUELLE, 
+            //ecrireImage(A_REMPLIR_POSITION_ACTUELLE, 
+            ecrireImage(6, 
                         nbrActifs, 
                         fbfd, 
                         fbp, 
@@ -269,10 +288,14 @@ int main(int argc, char* argv[])
                         vinfo.yres, 
                         &vinfo, 
                         finfo.line_length,
-                        A_REMPLIR_DONNEES_DE_LA_TRAME,
+                        /*A_REMPLIR_DONNEES_DE_LA_TRAME,
                         A_REMPLIR_LARGEUR_DE_LA_TRAME,
                         A_REMPLIR_HAUTEUR_DE_LA_TRAME,
-                        A_REMPLIR_NOMBRECANAUX_DANS_LA_TRAME);
+                        A_REMPLIR_NOMBRECANAUX_DANS_LA_TRAME);*/
+                        0,
+                        0,
+                        0,
+                        3);
     }
 
 
