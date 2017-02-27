@@ -194,10 +194,18 @@ int main(int argc, char* argv[])
 
     nbrActifs = argc - optind;
 
-    if (nbrActifs < 1 || nbrActifs > 4)
+    if (nbrActifs < 1 || nbrActifs > 4){
         fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",
                 argv[0]);
         exit(EXIT_FAILURE);
+    }
+
+    struct memPartage zones[nbrActifs];
+    for(int i = 0; i<nbrActifs; i++){
+        if(initMemoirePartageeLecteur(argv[i+optind], &zones[i]) != 0)
+            exit(EXIT_FAILURE);
+    }
+
 
     // Initialisation des structures nécessaires à l'affichage
     long int screensize = 0;
