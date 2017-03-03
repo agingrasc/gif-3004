@@ -28,4 +28,4 @@ set_source_files_properties(${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAG
 add_library(rtos_malloc ${RTOS_MEMORY_SRC})
 add_executable(decodeur ${DECODER_SRC})
 set_target_properties(decodeur PROPERTIES LINKER_LANGUAGE CXX)
-target_link_libraries(decodeur rtos_malloc rt)
+target_link_libraries(decodeur rtos_malloc rt pthread)
