@@ -35,6 +35,22 @@ struct videoInfos{
 *            4          uint32    0 (indique la fin du fichier)
 ******************************************************************************/
 
+/**
+ * Valide le header du fichier video reçu
+ * @param ptr
+ * @return
+ */
+int validate_header(void *ptr) {
+    char* vid_header = (char*) ptr;
+    for (int i = 0; i < HEADER_SIZE; i++) {
+        if (vid_header[i] != header[i]) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 
 int main(int argc, char* argv[]){
     
@@ -42,5 +58,6 @@ int main(int argc, char* argv[]){
     // N'oubliez pas que vous pouvez utiliser jpgd::decompress_jpeg_image_from_memory()
     // pour décoder une image JPEG contenue dans un buffer!
     // N'oubliez pas également que ce décodeur doit lire les fichiers ULV EN BOUCLE
-    printf("Hello, world!");
+
+    //
 }
