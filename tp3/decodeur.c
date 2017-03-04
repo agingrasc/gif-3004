@@ -49,19 +49,21 @@ int validate_header(FILE *file) {
 
 uint32_t read_uint32(FILE *file) {
     uint32_t arg = 0;
-    char data[4];
+    int c;
+    char data[4] = {0, 0, 0, 0};
     int idx = 0;
-    while (data[idx] = getc(file) != NULL && idx < 4) {
+    //ordre de la condition important
+    while (idx < 4 && (c = fgetc(file)) != EOF) {
+        data[idx] = c;
         idx++;
     }
 
-    if (idx < 3) {
+    if (idx < 4) {
         printf("Erreur lecture info video");
         exit(1);
     }
 
     memcpy(&arg, data, 4);
-    printf("arg read: %d\n", arg);
     return arg;
 }
 
