@@ -70,7 +70,8 @@ uint32_t read_uint32(FILE *file) {
 
 int main(int argc, char *argv[]) {
 
-    int err, current_idx;
+    uint32_t current_idx = 0;
+    int err = 0;
     // Écrivez le code de décodage et d'envoi sur la zone mémoire partagée ici!
     // N'oubliez pas que vous pouvez utiliser jpgd::decompress_jpeg_image_from_memory()
     // pour décoder une image JPEG contenue dans un buffer!
@@ -144,7 +145,7 @@ int main(int argc, char *argv[]) {
     current_idx = INFO_SIZE;
     //boucle continu
     while (1) {
-        if (current_idx >= video_size) {
+        if (current_idx >= video_size - 4) {
             current_idx = 0;
             printf("On reboucle la video");
             break;
@@ -160,7 +161,7 @@ int main(int argc, char *argv[]) {
         height = video_info.hauteur;
         unsigned char* frame;
 
-        frame = jpgd::decompress_jpeg_image_from_memory(mem.data+current_idx, image_size, &width, &height, &actual_comp, video_info.canaux);
+        frame = jpgd::decompress_jpeg_image_from_memory((const unsigned char*) (video_mem + current_idx), image_size, &width, &height, &actual_comp, video_info.canaux);
 
         mem.header->largeur = width;
         mem.header->hauteur = height;
