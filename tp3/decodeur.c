@@ -128,10 +128,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    //acquisition du mutex
-    pthread_mutex_lock(&mem.header->mutex);
-    mem.header->frameWriter++;
-
     //mettre le fichier en memoire
     int data;
     current_idx = 0;
@@ -143,12 +139,16 @@ int main(int argc, char *argv[]) {
     fclose(video_file);
 
     current_idx = INFO_SIZE;
+    uint32_t current_reader_idx = 0;
     //boucle continu
     while (1) {
+        //acquisition du mutex
+        pthread_mutex_lock(&mem.header->mutex);
+        mem.header->frameWriter++;
+
         if (current_idx >= video_size - 4) {
             current_idx = 0;
             printf("On reboucle la video");
-            break;
         }
         //extraire taille prochaine image
         uint32_t image_size;
@@ -176,8 +176,14 @@ int main(int argc, char *argv[]) {
             printf("Le nombre de canaux a change selon le decodage (avant, apres, index en char): %d, %d, %d\n", video_info.canaux, actual_comp, current_idx);
         }
 
-        current_idx += image_size;
+        //copie de la frame
+        memcpy(mem.data, frame, image_size);
 
+        //liberation du mutex et mise a jour de notre index prive
+        current_idx += image_size;
+        current_reader_idx = mem.header->frameReader;
+        pthread_mutex_unlock(&mem.header->mutex);
+        while (current_reader_idx == mem.header->frameReader); //on attend apres le lecteur
     }
     return 0;
 }
