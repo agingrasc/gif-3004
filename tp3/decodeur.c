@@ -1,5 +1,6 @@
 #include "allocateurMemoire.h"
 #include "commMemoirePartagee.h"
+#include "jpgd.h"
 
 // Gestion des ressources et permissions
 
@@ -89,17 +90,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     fseek(video_file, 0L, SEEK_END);
-    size_t mem_size = ftell(video_file) - 20;
+    size_t video_size = ftell(video_file);
     rewind(video_file);
-
-    //init memoire ecrivain
-    memPartage mem;
-    memPartageHeader memHeader;
-    err = initMemoirePartageeEcrivain(output_flux, &mem, mem_size, &memHeader);
-    if (err) {
-        printf("Echec init memoire partage ecrivain (decodeur) pour %s.", filename);
-        return 1;
-    }
 
     //valider header
     err = validate_header(video_file);
@@ -117,26 +109,74 @@ int main(int argc, char *argv[]) {
     printf("Info lu:\nlargeur: %d\nhauteur: %d\ncanaux: %d\nfps: %d\n", video_info.largeur, video_info.hauteur,
            video_info.canaux, video_info.fps);
 
-    current_idx = 4; //nbr de char lu dans la video
+    //acquisition d'un espace memoire
+    char* video_mem = (char*) tempsreel_malloc(video_size);
+
+    //init memoire ecrivain
+    memPartage mem;
+    memPartageHeader memHeader;
+    memHeader.hauteur = video_info.hauteur;
+    memHeader.largeur = video_info.largeur;
+    memHeader.fps = video_info.fps;
+    memHeader.canaux = video_info.canaux;
+
+    size_t frame_size = video_info.hauteur * video_info.largeur * video_info.canaux;
+    err = initMemoirePartageeEcrivain(output_flux, &mem, frame_size, &memHeader);
+    if (err) {
+        printf("Echec init memoire partage ecrivain (decodeur) pour %s.", filename);
+        return 1;
+    }
+
+    //acquisition du mutex
+    pthread_mutex_lock(&mem.header->mutex);
+    mem.header->frameWriter++;
 
     //mettre le fichier en memoire
-    char data;
+    int data;
     current_idx = 0;
-    fseek(video_file, 0L, 0);
-    while (data = getc(video_file) != EOF) {
-        mem.data[current_idx] = data;
+    fseek(video_file, 0L, SEEK_SET);
+    while ((data = getc(video_file)) != EOF) {
+        video_mem[current_idx] = data;
         current_idx++;
     }
     fclose(video_file);
 
+    current_idx = INFO_SIZE;
     //boucle continu
     while (1) {
+        if (current_idx >= video_size) {
+            current_idx = 0;
+            printf("On reboucle la video");
+            break;
+        }
         //extraire taille prochaine image
-        int image_size = (int) -32;
+        uint32_t image_size;
+        memcpy(&image_size, video_mem + current_idx, 4);
+        current_idx += 4;
 
         //decoder
-        //jpgd::decompress_jpeg_image_from_memory(video, image_size, &width, &height, &actual_comp, req_comp);
-        break;
+        int width, height, actual_comp = 0;
+        width = video_info.largeur;
+        height = video_info.hauteur;
+        unsigned char* frame;
+
+        frame = jpgd::decompress_jpeg_image_from_memory(mem.data+current_idx, image_size, &width, &height, &actual_comp, video_info.canaux);
+
+        mem.header->largeur = width;
+        mem.header->hauteur = height;
+        mem.header->canaux = actual_comp;
+        if (width != video_info.largeur) {
+            printf("La largeur a change selon le decodage (avant, apres, index en char): %d, %d, %d\n", video_info.largeur, width, current_idx);
+        }
+        if (height != video_info.hauteur) {
+            printf("La hauteur a change selon le decodage (avant, apres, index en char): %d, %d, %d\n", video_info.hauteur, height, current_idx);
+        }
+        if (actual_comp != video_info.canaux) {
+            printf("Le nombre de canaux a change selon le decodage (avant, apres, index en char): %d, %d, %d\n", video_info.canaux, actual_comp, current_idx);
+        }
+
+        current_idx += image_size;
+
     }
     return 0;
 }
