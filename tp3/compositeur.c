@@ -86,6 +86,7 @@ void ecrireImage(const int position, const int total,
 		imageGlobale = (unsigned char*)calloc(fbLineLength*hauteurFB, 1);
 
 	currentPage = (currentPage+1) % 2;
+	//currentPage = 0;
 	unsigned char *currentFramebuffer = fb + currentPage * fbLineLength * hauteurFB;
 
 	if(position >= total){
@@ -106,7 +107,6 @@ void ecrireImage(const int position, const int total,
 		}
 		dataTraite = d;
 	}
-
 
 	if(total == 1){
 		// Une seule image en plein écran
@@ -264,6 +264,7 @@ int main(int argc, char* argv[])
 
     // On fait un mmap pour avoir directement accès au framebuffer
     screensize = finfo.smem_len;
+    printf("%u\n", screensize);
     unsigned char *fbp = (unsigned char*)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
 
     if (fbp == MAP_FAILED) {
@@ -271,7 +272,13 @@ int main(int argc, char* argv[])
 		return -1;
     }
 
-
+    struct timeval last_frame_time;
+    struct timeval current_time;
+    struct timeval frame_diff;
+    struct timeval current_diff;
+    frame_diff.tv_sec = 0;
+    frame_diff.tv_usec = 1000000/30;
+    gettimeofday(&last_frame_time, NULL);
     while(1){
             // Boucle principale du programme
             // TODO
@@ -285,25 +292,43 @@ int main(int argc, char* argv[])
         
             // N'oubliez pas que toutes les images fournies à ecrireImage() DOIVENT être en
             // 427x240 (voir le commentaire en haut du document).
-        
-            // Exemple d'appel à ecrireImage (n'oubliez pas de remplacer les arguments commençant par A_REMPLIR!)
-            //ecrireImage(A_REMPLIR_POSITION_ACTUELLE, 
-            ecrireImage(6, 
-                        nbrActifs, 
-                        fbfd, 
-                        fbp, 
-                        vinfo.xres, 
-                        vinfo.yres, 
-                        &vinfo, 
-                        finfo.line_length,
-                        /*A_REMPLIR_DONNEES_DE_LA_TRAME,
-                        A_REMPLIR_LARGEUR_DE_LA_TRAME,
-                        A_REMPLIR_HAUTEUR_DE_LA_TRAME,
-                        A_REMPLIR_NOMBRECANAUX_DANS_LA_TRAME);*/
-                        0,
-                        0,
-                        0,
-                        3);
+            //
+
+            gettimeofday(&current_time, NULL);
+            timersub(&current_time, &last_frame_time, &current_diff);
+            if (timercmp(&current_diff, &frame_diff, >)){
+                if(attenteLecteurAsync(&zones[0]) == 0){
+                    //ecrireImage(A_REMPLIR_POSITION_ACTUELLE, 
+                    uint32_t w = zones[0].header->largeur;
+                    uint32_t h = zones[0].header->hauteur;
+                    uint32_t c = zones[0].header->canaux;
+                    size_t tailleDonnees = w*h*c;
+                    ecrireImage(0, 
+                                nbrActifs, 
+                                fbfd, 
+                                fbp, 
+                                vinfo.xres, 
+                                vinfo.yres, 
+                                &vinfo, 
+                                finfo.line_length,
+                                /*A_REMPLIR_DONNEES_DE_LA_TRAME,
+                                A_REMPLIR_LARGEUR_DE_LA_TRAME,
+                                A_REMPLIR_HAUTEUR_DE_LA_TRAME,
+                                A_REMPLIR_NOMBRECANAUX_DANS_LA_TRAME);*/
+                                zones[0].data,
+                                w,
+                                h,
+                                c);
+                    printf("w: %u h: %u c: %u\n", w, h, c);
+                    gettimeofday(&last_frame_time, NULL);
+
+                    printf("NEW FRAME!\n");
+
+                    zones[0].header->frameReader += tailleDonnees;
+
+                    pthread_mutex_unlock(&zones[0].header->mutex);
+                }
+            }
     }
 
 

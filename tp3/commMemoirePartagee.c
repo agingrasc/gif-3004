@@ -5,7 +5,7 @@ int initMemoirePartageeLecteur(const char* identifiant,
                                 struct memPartage *zone){
     
     
-    while ((zone->fd = shm_open(identifiant, O_RDONLY, 0444)) < 0);
+    while ((zone->fd = shm_open(identifiant, O_RDWR, 0666)) < 0);
     struct stat s;
     do{
         fstat(zone->fd, &s);
@@ -18,6 +18,8 @@ int initMemoirePartageeLecteur(const char* identifiant,
     zone->header = header;
     zone->tailleDonnees = s.st_size - sizeof(memPartageHeader);
     zone->copieCompteur = 0;
+
+    while(zone->header->frameWriter == 0);
 
     return 0;
 
