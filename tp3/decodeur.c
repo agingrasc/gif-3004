@@ -116,6 +116,12 @@ int main(int argc, char *argv[]) {
     //init memoire ecrivain
     memPartage mem;
     memPartageHeader memHeader;
+    memHeader.frameWriter = 0;
+    memHeader.frameReader = 0;
+    memHeader.hauteur = 0;
+    memHeader.largeur = 0;
+    memHeader.fps = 0;
+    memHeader.canaux = 0;
     memHeader.hauteur = video_info.hauteur;
     memHeader.largeur = video_info.largeur;
     memHeader.fps = video_info.fps;
@@ -127,6 +133,8 @@ int main(int argc, char *argv[]) {
         printf("Echec init memoire partage ecrivain (decodeur) pour %s.", filename);
         return 1;
     }
+    pthread_mutex_lock(&mem.header->mutex);
+    mem.header->frameWriter = 0;
 
     //mettre le fichier en memoire
     int data;
@@ -142,12 +150,11 @@ int main(int argc, char *argv[]) {
     uint32_t current_reader_idx = 0;
     //boucle continu
     while (1) {
-        //acquisition du mutex
-        pthread_mutex_lock(&mem.header->mutex);
         mem.header->frameWriter++;
 
+        printf("Frame: %d\n", mem.header->frameWriter);
         if (current_idx >= video_size - 4) {
-            current_idx = 0;
+            current_idx = INFO_SIZE;
             printf("On reboucle la video");
         }
         //extraire taille prochaine image
@@ -184,6 +191,9 @@ int main(int argc, char *argv[]) {
         current_reader_idx = mem.header->frameReader;
         pthread_mutex_unlock(&mem.header->mutex);
         while (current_reader_idx == mem.header->frameReader); //on attend apres le lecteur
+
+        //acquisition du mutex
+        pthread_mutex_lock(&mem.header->mutex);
     }
     return 0;
 }
