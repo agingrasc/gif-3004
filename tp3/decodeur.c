@@ -158,8 +158,8 @@ int main(int argc, char *argv[]) {
             printf("On reboucle la video");
         }
         //extraire taille prochaine image
-        uint32_t image_size;
-        memcpy(&image_size, video_mem + current_idx, 4);
+        uint32_t compressed_image_size;
+        memcpy(&compressed_image_size, video_mem + current_idx, 4);
         current_idx += 4;
 
         //decoder
@@ -168,7 +168,7 @@ int main(int argc, char *argv[]) {
         height = video_info.hauteur;
         unsigned char* frame;
 
-        frame = jpgd::decompress_jpeg_image_from_memory((const unsigned char*) (video_mem + current_idx), image_size, &width, &height, &actual_comp, video_info.canaux);
+        frame = jpgd::decompress_jpeg_image_from_memory((const unsigned char*) (video_mem + current_idx), compressed_image_size, &width, &height, &actual_comp, video_info.canaux);
 
         mem.header->largeur = width;
         mem.header->hauteur = height;
@@ -182,6 +182,8 @@ int main(int argc, char *argv[]) {
         if (actual_comp != video_info.canaux) {
             printf("Le nombre de canaux a change selon le decodage (avant, apres, index en char): %d, %d, %d\n", video_info.canaux, actual_comp, current_idx);
         }
+
+        uint32_t image_size = width*height*actual_comp;
 
         //copie de la frame
         memcpy(mem.data, frame, image_size);

@@ -85,8 +85,8 @@ void ecrireImage(const int position, const int total,
 	if(imageGlobale == NULL)
 		imageGlobale = (unsigned char*)calloc(fbLineLength*hauteurFB, 1);
 
-	currentPage = (currentPage+1) % 2;
-	//currentPage = 0;
+	//currentPage = (currentPage+1) % 2;
+	currentPage = 0;
 	unsigned char *currentFramebuffer = fb + currentPage * fbLineLength * hauteurFB;
 
 	if(position >= total){
@@ -319,12 +319,14 @@ int main(int argc, char* argv[])
                                 w,
                                 h,
                                 c);
-                    printf("w: %u h: %u c: %u\n", w, h, c);
+
+
+                    //printf("w: %u h: %u c: %u\n", w, h, c);
                     gettimeofday(&last_frame_time, NULL);
 
-                    printf("NEW FRAME!\n");
+                    //printf("NEW FRAME!\n");
 
-                    zones[0].header->frameReader += tailleDonnees;
+                    zones[0].header->frameReader += 1;
 
                     pthread_mutex_unlock(&zones[0].header->mutex);
                 }
