@@ -189,7 +189,7 @@ int main(int argc, char *argv[]) {
         memcpy(mem.data, frame, image_size);
 
         //liberation du mutex et mise a jour de notre index prive
-        current_idx += image_size;
+        current_idx += compressed_image_size;
         current_reader_idx = mem.header->frameReader;
         pthread_mutex_unlock(&mem.header->mutex);
         while (current_reader_idx == mem.header->frameReader); //on attend apres le lecteur
