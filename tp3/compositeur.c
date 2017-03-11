@@ -166,11 +166,11 @@ void ecrireImage(const int position, const int total,
         if(canauxSource == 1)
 		tempsreel_free(d);
         
-	vinfoPtr->yoffset = currentPage * vinfoPtr->yres;
+	/*vinfoPtr->yoffset = currentPage * vinfoPtr->yres;
 	vinfoPtr->activate = FB_ACTIVATE_VBL;
 	if (ioctl(fbfd, FBIOPAN_DISPLAY, vinfoPtr)) {
 		printf("Erreur lors du changement de buffer (double buffering inactif)!\n");
-	}
+	}*/
 }
 
 
@@ -251,9 +251,17 @@ int main(int argc, char* argv[])
 
     vinfo.xres_virtual = vinfo.xres;
     vinfo.yres_virtual = vinfo.yres * 2;
+
+
     if (ioctl(fbfd, FBIOPUT_VSCREENINFO, &vinfo)) {
 		perror("Erreur lors de l'appel a ioctl ");
     }
+    
+    
+    if (ioctl(fbfd, FBIOGET_VSCREENINFO, &vinfo)) {
+        perror("Erreur lors de la requete d'informations sur le framebuffer ");
+    }
+    printf("x: %u, y: %u\n", vinfo.grayscale, vinfo.bits_per_pixel);
 
     // On récupère les "vraies" paramètres du framebuffer
     if (ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo)) {
@@ -264,7 +272,6 @@ int main(int argc, char* argv[])
 
     // On fait un mmap pour avoir directement accès au framebuffer
     screensize = finfo.smem_len;
-    printf("%u\n", screensize);
     unsigned char *fbp = (unsigned char*)mmap(0, screensize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
 
     if (fbp == MAP_FAILED) {
@@ -272,64 +279,58 @@ int main(int argc, char* argv[])
 		return -1;
     }
 
-    struct timeval last_frame_time;
-    struct timeval current_time;
-    struct timeval frame_diff;
-    struct timeval current_diff;
-    frame_diff.tv_sec = 0;
-    frame_diff.tv_usec = 1000000/30;
-    gettimeofday(&last_frame_time, NULL);
+    struct timeval last_frame_time[nbrActifs];
+    struct timeval frame_diff[nbrActifs];
+    for (int i=0; i<nbrActifs; i++){
+        gettimeofday(&last_frame_time[i], NULL);
+        frame_diff[i].tv_sec = 0;
+        frame_diff[i].tv_usec = 1000000/zones[i].header->fps;
+    }
     while(1){
             // Boucle principale du programme
-            // TODO
-            // Appelez ici ecrireImage() avec les images provenant des différents flux vidéo
-            // Attention à ne pas mélanger les flux, et à ne pas bloquer sur un mutex (ce qui
-            // bloquerait l'interface entière)
-            // Nous vous conseillons d'implémenter une limitation du nombre de FPS (images par
-            // seconde), nombre qui est spécifié pour chaque flux. Il est inutile d'aller plus
-            // vite que le nombre de FPS demandé, et cela consomme plus de ressources, ce qui
-            // peut rendre plus difficile l'exécution des configurations difficiles.
         
             // N'oubliez pas que toutes les images fournies à ecrireImage() DOIVENT être en
             // 427x240 (voir le commentaire en haut du document).
             //
 
+            struct timeval current_time;
             gettimeofday(&current_time, NULL);
-            timersub(&current_time, &last_frame_time, &current_diff);
-            if (timercmp(&current_diff, &frame_diff, >)){
-                if(attenteLecteurAsync(&zones[0]) == 0){
-                    //ecrireImage(A_REMPLIR_POSITION_ACTUELLE, 
-                    uint32_t w = zones[0].header->largeur;
-                    uint32_t h = zones[0].header->hauteur;
-                    uint32_t c = zones[0].header->canaux;
-                    size_t tailleDonnees = w*h*c;
-                    ecrireImage(0, 
-                                nbrActifs, 
-                                fbfd, 
-                                fbp, 
-                                vinfo.xres, 
-                                vinfo.yres, 
-                                &vinfo, 
-                                finfo.line_length,
-                                /*A_REMPLIR_DONNEES_DE_LA_TRAME,
-                                A_REMPLIR_LARGEUR_DE_LA_TRAME,
-                                A_REMPLIR_HAUTEUR_DE_LA_TRAME,
-                                A_REMPLIR_NOMBRECANAUX_DANS_LA_TRAME);*/
-                                zones[0].data,
-                                w,
-                                h,
-                                c);
+
+            for(int i=0; i<nbrActifs; i++){
+                struct timeval current_diff;
+                timersub(&current_time, &last_frame_time[i], &current_diff);
+                if (timercmp(&current_diff, &frame_diff[i], <))
+                    continue;
+
+                if(attenteLecteurAsync(&zones[i]) != 0)
+                    continue;
+
+                uint32_t w = zones[i].header->largeur;
+                uint32_t h = zones[i].header->hauteur;
+                uint32_t c = zones[i].header->canaux;
+                size_t tailleDonnees = w*h*c;
+                ecrireImage(i, 
+                            nbrActifs, 
+                            fbfd, 
+                            fbp, 
+                            vinfo.xres, 
+                            vinfo.yres, 
+                            &vinfo, 
+                            finfo.line_length,
+                            zones[i].data,
+                            w,
+                            h,
+                            c);
 
 
-                    //printf("w: %u h: %u c: %u\n", w, h, c);
-                    gettimeofday(&last_frame_time, NULL);
+                //printf("w: %u h: %u c: %u\n", w, h, c);
+                gettimeofday(&last_frame_time[i], NULL);
 
-                    //printf("NEW FRAME!\n");
+                //printf("NEW FRAME!\n");
 
-                    zones[0].header->frameReader += 1;
+                zones[i].header->frameReader += 1;
 
-                    pthread_mutex_unlock(&zones[0].header->mutex);
-                }
+                pthread_mutex_unlock(&zones[i].header->mutex);
             }
     }
 
