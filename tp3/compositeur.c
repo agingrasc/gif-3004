@@ -34,7 +34,7 @@
 #include <sys/types.h>
 
 // Allocation mémoire, mmap et mlock
-#include <sys/mman.h>
+//#include <sys/mman.h>
 
 // Gestion des ressources et permissions
 #include <sys/resource.h>

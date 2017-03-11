@@ -51,11 +51,13 @@ int initMemoirePartageeEcrivain(const char* identifiant,
     header->hauteur = headerInfos->hauteur;
     header->canaux = headerInfos->canaux;
     header->fps = headerInfos->fps;
+    header->frameReader = 0;
+    header->frameWriter = 0;
 
     zone->data = (((unsigned char*)shm)+sizeof(memPartageHeader));
     zone->header = header;
     zone->tailleDonnees = taille;
-    zone->copieCompteur = 0;
+    zone->copieCompteur = 99999;
 
     return 0;
 
@@ -79,7 +81,7 @@ int attenteLecteurAsync(struct memPartage *zone){
 
 // Appelé par l'écrivain pour se mettre en attente de la lecture du résultat précédent par un lecteur
 int attenteEcrivain(struct memPartage *zone){
-    while(zone->header->frameWriter == zone->header->frameReader); //Might not be the right condition
+    while(zone->copieCompteur == zone->header->frameReader);
     return pthread_mutex_lock(&zone->header->mutex);
 }
 

@@ -1,6 +1,7 @@
 #include "allocateurMemoire.h"
 #include "commMemoirePartagee.h"
 #include "jpgd.h"
+#include "utils.h"
 
 // Gestion des ressources et permissions
 
@@ -184,6 +185,8 @@ int main(int argc, char *argv[]) {
         }
 
         uint32_t image_size = width*height*actual_comp;
+
+        enregistreImage(frame, height, width, actual_comp, "frame.ppm");
 
         //copie de la frame
         memcpy(mem.data, frame, image_size);
