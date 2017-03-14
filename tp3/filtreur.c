@@ -36,6 +36,8 @@
 #include "commMemoirePartagee.h"
 #include "utils.h"
 
+#define MUCH 0
+
 int main(int argc, char* argv[])
 {
     int core = -1;
@@ -71,6 +73,8 @@ int main(int argc, char* argv[])
                 argv[0]);
         exit(EXIT_FAILURE);
     }
+
+    prepareMemoire(MUCH, MUCH);
 
     struct memPartage zone_lecture;
     struct memPartage zone_ecriture;
