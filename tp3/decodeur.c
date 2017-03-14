@@ -113,8 +113,21 @@ int main(int argc, char *argv[]) {
     printf("Info lu:\nlargeur: %d\nhauteur: %d\ncanaux: %d\nfps: %d\n", video_info.largeur, video_info.hauteur,
            video_info.canaux, video_info.fps);
 
-    //acquisition d'un espace memoire
-    unsigned char* video_mem = (unsigned char*) malloc(video_size); //Remove that malloc, memory-map
+    fclose(video_file);
+    
+    int video_fd = open(filename, O_RDONLY);
+    if (video_fd == -1) {
+        printf("Echec de l'ouverture du fichier video: %s", filename);
+        return 1;
+    }
+
+    const unsigned char* video_mem = (unsigned char*)mmap(NULL, video_size, PROT_READ, MAP_POPULATE | MAP_PRIVATE, video_fd, 0);
+
+    printf("dfjd: %p\n", video_mem);
+
+    uint32_t* test = (uint32_t*)video_mem;
+
+    printf("dfjd: %u\n", *test);
 
     //init memoire ecrivain
     memPartage mem;
@@ -141,14 +154,6 @@ int main(int argc, char *argv[]) {
 
     //mettre le fichier en memoire
     int data;
-    current_idx = 0;
-    fseek(video_file, 0L, SEEK_SET);
-    while ((data = getc(video_file)) != EOF) {
-        video_mem[current_idx] = data;
-        current_idx++;
-    }
-    fclose(video_file);
-
     current_idx = INFO_SIZE;
     uint32_t current_reader_idx = 0;
     //boucle continu
