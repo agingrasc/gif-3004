@@ -71,6 +71,8 @@ uint32_t read_uint32(FILE *file) {
 
 int main(int argc, char *argv[]) {
 
+    prepareMemoire(0, 0);
+
     uint32_t current_idx = 0;
     int err = 0;
     // Écrivez le code de décodage et d'envoi sur la zone mémoire partagée ici!
@@ -112,7 +114,7 @@ int main(int argc, char *argv[]) {
            video_info.canaux, video_info.fps);
 
     //acquisition d'un espace memoire
-    char* video_mem = (char*) tempsreel_malloc(video_size);
+    unsigned char* video_mem = (unsigned char*) malloc(video_size); //Remove that malloc, memory-map
 
     //init memoire ecrivain
     memPartage mem;
@@ -186,11 +188,14 @@ int main(int argc, char *argv[]) {
 
         uint32_t image_size = width*height*actual_comp;
 
-        enregistreImage(frame, height, width, actual_comp, "frame.ppm");
+        //enregistreImage(frame, height, width, actual_comp, "frame.ppm");
 
         //copie de la frame
         memcpy(mem.data, frame, image_size);
 
+        tempsreel_free(frame);
+
+        printf("e2o\n");
         //liberation du mutex et mise a jour de notre index prive
         current_idx += compressed_image_size;
         current_reader_idx = mem.header->frameReader;
