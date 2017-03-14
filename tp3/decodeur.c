@@ -39,34 +39,10 @@ struct videoInfos {
  * @param ptr
  * @return
  */
-int validate_header(FILE *file) {
-    for (int i = 0; i < HEADER_SIZE; i++) {
-        if (getc(file) != header[i]) {
-            return 1;
-        }
-    }
+int validate_header(const char *actual_header) {
 
-    return 0;
-}
-
-uint32_t read_uint32(FILE *file) {
-    uint32_t arg = 0;
-    int c;
-    char data[4] = {0, 0, 0, 0};
-    int idx = 0;
-    //ordre de la condition important
-    while (idx < 4 && (c = fgetc(file)) != EOF) {
-        data[idx] = c;
-        idx++;
-    }
-
-    if (idx < 4) {
-        printf("Erreur lecture info video");
-        exit(1);
-    }
-
-    memcpy(&arg, data, 4);
-    return arg;
+    return strncmp(header, actual_header, 4) != 0;
+    
 }
 
 int main(int argc, char *argv[]) {
@@ -87,18 +63,22 @@ int main(int argc, char *argv[]) {
     output_flux = (argv[2]);
     printf("Args: %s, %s\n", filename, output_flux);
 
-    //ouverture fichier video
-    FILE *video_file = fopen(filename, "r");
-    if (video_file == NULL) {
+    int video_fd = open(filename, O_RDONLY);
+    if (video_fd == -1) {
         printf("Echec de l'ouverture du fichier video: %s", filename);
         return 1;
     }
-    fseek(video_file, 0L, SEEK_END);
-    size_t video_size = ftell(video_file);
-    rewind(video_file);
+
+    struct stat video_stats;
+
+    fstat(video_fd, &video_stats);
+
+    uint32_t video_size = video_stats.st_size;
+
+    const char* video_mem = (char*)mmap(NULL, video_size, PROT_READ, MAP_POPULATE | MAP_PRIVATE, video_fd, 0);
 
     //valider header
-    err = validate_header(video_file);
+    err = validate_header(video_mem);
     if (err) {
         printf("Header invalide! %s", filename);
         return 1;
@@ -106,16 +86,14 @@ int main(int argc, char *argv[]) {
 
     //extraire meta information (larger, hauteur, req_comp, fps)
     videoInfos video_info;
-    video_info.largeur = read_uint32(video_file);
-    video_info.hauteur = read_uint32(video_file);
-    video_info.canaux = read_uint32(video_file);
-    video_info.fps = read_uint32(video_file);
+    memcpy(&video_info.largeur, video_mem + 4, 4);
+    memcpy(&video_info.hauteur, video_mem + 8, 4);
+    memcpy(&video_info.canaux, video_mem + 12, 4);
+    memcpy(&video_info.fps, video_mem + 16, 4);
     printf("Info lu:\nlargeur: %d\nhauteur: %d\ncanaux: %d\nfps: %d\n", video_info.largeur, video_info.hauteur,
            video_info.canaux, video_info.fps);
 
-    //acquisition d'un espace memoire
-    unsigned char* video_mem = (unsigned char*) malloc(video_size); //Remove that malloc, memory-map
-
+    
     //init memoire ecrivain
     memPartage mem;
     memPartageHeader memHeader;
@@ -141,14 +119,6 @@ int main(int argc, char *argv[]) {
 
     //mettre le fichier en memoire
     int data;
-    current_idx = 0;
-    fseek(video_file, 0L, SEEK_SET);
-    while ((data = getc(video_file)) != EOF) {
-        video_mem[current_idx] = data;
-        current_idx++;
-    }
-    fclose(video_file);
-
     current_idx = INFO_SIZE;
     uint32_t current_reader_idx = 0;
     //boucle continu
@@ -195,7 +165,6 @@ int main(int argc, char *argv[]) {
 
         tempsreel_free(frame);
 
-        printf("e2o\n");
         //liberation du mutex et mise a jour de notre index prive
         current_idx += compressed_image_size;
         current_reader_idx = mem.header->frameReader;
