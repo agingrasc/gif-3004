@@ -311,14 +311,12 @@ int main(int argc, char* argv[])
 
         int delta_t = current_time.tv_sec - last_frame_counter_time.tv_sec;
         if (delta_t > 1) {
-            printf("Log des informations de video.\n");
             last_frame_counter_time.tv_sec = current_time.tv_sec;
             FILE *log = fopen("stats.txt", "a");
 
             if (log == NULL) {
                 printf("Erreur a l'ouverture du fichier de log.\n");
             }
-            printf("Fichier ouvert.\n");
 
             fseek(log, 0, SEEK_END);
             for (int i = 0; i < nbrActifs; i++) {
