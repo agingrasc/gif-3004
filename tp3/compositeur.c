@@ -85,8 +85,8 @@ void ecrireImage(const int position, const int total,
 	if(imageGlobale == NULL)
 		imageGlobale = (unsigned char*)calloc(fbLineLength*hauteurFB, 1);
 
-	//currentPage = (currentPage+1) % 2;
-	currentPage = 0;
+	currentPage = (currentPage+1) % 2;
+	//currentPage = 0;
 	unsigned char *currentFramebuffer = fb + currentPage * fbLineLength * hauteurFB;
 
 	if(position >= total){
@@ -166,11 +166,11 @@ void ecrireImage(const int position, const int total,
         if(canauxSource == 1)
 		tempsreel_free(d);
         
-	/*vinfoPtr->yoffset = currentPage * vinfoPtr->yres;
+	vinfoPtr->yoffset = currentPage * vinfoPtr->yres;
 	vinfoPtr->activate = FB_ACTIVATE_VBL;
 	if (ioctl(fbfd, FBIOPAN_DISPLAY, vinfoPtr)) {
 		printf("Erreur lors du changement de buffer (double buffering inactif)!\n");
-	}*/
+	}
 }
 
 
