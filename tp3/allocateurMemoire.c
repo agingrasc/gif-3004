@@ -25,7 +25,6 @@ void* tempsreel_malloc(size_t taille){
     for(int i = 0; i<4; i++){ 
         if(libre[i] == 1){
             libre[i] = 0;
-            printf("Alloc %u\n", i);
             return spaces[i];
         }
     }
@@ -38,7 +37,6 @@ void tempsreel_free(void* ptr){
     for(int i = 0; i<4; i++){ 
         if(spaces[i] == ptr){
             libre[i] = 1;
-            printf("Free %u\n", i);
             return;
         }
     }

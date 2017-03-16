@@ -28,12 +28,18 @@ set(COMPOSITER_SRC
         compositeur.c
         utils.c)
 
-set_source_files_properties(${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX)
+set(FILTER_SRC
+        filtreur.c
+        utils.c)
+
+set_source_files_properties(${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX)
 
 
 add_library(rtos_malloc ${RTOS_MEMORY_SRC})
 add_executable(decodeur ${DECODER_SRC})
 add_executable(compositeur ${COMPOSITER_SRC})
+add_executable(filtreur ${FILTER_SRC})
 set_target_properties(decodeur PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(decodeur rtos_malloc rt pthread)
 target_link_libraries(compositeur rtos_malloc rt pthread)
+target_link_libraries(filtreur rtos_malloc rt pthread)

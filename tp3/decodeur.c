@@ -125,7 +125,6 @@ int main(int argc, char *argv[]) {
     while (1) {
         mem.header->frameWriter++;
 
-        printf("Frame: %d\n", mem.header->frameWriter);
         if (current_idx >= video_size - 4) {
             current_idx = INFO_SIZE;
             printf("On reboucle la video");
