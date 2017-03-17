@@ -46,21 +46,13 @@ int main(int argc, char* argv[])
                              const unsigned int kernel_size, float sigma,
                              const unsigned int n_channels);
     int opt;
-    while ((opt = getopt(argc, argv, "a:t:")) != -1) {
+    while ((opt = getopt(argc, argv, "a:")) != -1) {
         switch (opt) {
             case 'a':
                 core = strtol(optarg, NULL, 10);
                 break;
-            case 't':
-                if (strtol(optarg, NULL, 10) == 0){
-                    filter_function = lowpassFilter;
-                }
-                else{
-                    filter_function = highpassFilter;
-                }
-                break;
             default: /* '?' */
-                        fprintf(stderr, "Usage: %s [-a core] [-t type_de_filtre] flux_entree1 flux_sortie\n",
+                fprintf(stderr, "Usage: %s [-a core] flux_entree1 flux_sortie\n",
                         argv[0]);
                 exit(EXIT_FAILURE);
         }
@@ -68,7 +60,7 @@ int main(int argc, char* argv[])
 
 
     if ((argc - optind) != 2){
-        fprintf(stderr, "Usage: %s [-a core] [-t type_de_filtre] flux_entree1 flux_sortie\n",
+        fprintf(stderr, "Usage: %s [-a core] flux_entree1 flux_sortie\n",
                 argv[0]);
         exit(EXIT_FAILURE);
     }
@@ -103,7 +95,7 @@ int main(int argc, char* argv[])
         writer_count = zone_lecture.header->frameWriter;
         pthread_mutex_unlock(&zone_lecture.header->mutex);
 
-        filter_function(h, w, zone_lecture.data, zone_ecriture.data, 5, 10, c);
+        convertToGray(zone_lecture.data, h, w, c, zone_ecriture.data);
 
         // liberation zone_ecriture
         zone_ecriture.header->frameWriter += 1;
@@ -120,4 +112,3 @@ int main(int argc, char* argv[])
     return 0;
 
 }
-

@@ -125,7 +125,6 @@ int main(int argc, char *argv[]) {
     filename = (argv[optc]);
     optc++;
     output_flux = (argv[optc]);
-    printf("Args: %s, %s\n", filename, output_flux);
 
     int video_fd = open(filename, O_RDONLY);
     if (video_fd == -1) {

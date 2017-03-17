@@ -33,7 +33,11 @@ set(REDIMENSIONNEUR_SRC
         redimensionneur.c
         utils.c)
 
-set_source_files_properties(${REDIMENSIONNEUR_SRC} ${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${GENERIC_C_FLAGS} -g")
+set(GRAYSCALER_SRC
+        grayscaler.c
+        utils.c)
+
+set_source_files_properties(${GRAYSCALER_SRC} ${REDIMENSIONNEUR_SRC} ${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${GENERIC_C_FLAGS} -g")
 
 
 add_library(rtos_malloc ${RTOS_MEMORY_SRC})
@@ -41,8 +45,10 @@ add_executable(decodeur ${DECODER_SRC})
 add_executable(compositeur ${COMPOSITER_SRC})
 add_executable(filtreur ${FILTER_SRC})
 add_executable(redimensionneur ${REDIMENSIONNEUR_SRC})
+add_executable(grayscaler ${GRAYSCALER_SRC})
 set_target_properties(decodeur PROPERTIES LINKER_LANGUAGE CXX)
 target_link_libraries(decodeur rtos_malloc rt pthread)
 target_link_libraries(compositeur rtos_malloc rt pthread)
 target_link_libraries(filtreur rtos_malloc rt pthread)
 target_link_libraries(redimensionneur rtos_malloc rt pthread)
+target_link_libraries(grayscaler rtos_malloc rt pthread)
