@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <fcntl.h>
+#include <sched.h>
 
 #include <stropts.h>
 
@@ -32,6 +33,7 @@
 #include <sys/resource.h>
 
 #include <sys/types.h>
+#include <ctype.h>
 
 // Allocation mémoire, mmap et mlock
 //#include <sys/mman.h>
@@ -178,31 +180,102 @@ void ecrireImage(const int position, const int total,
     frames_count[position]++;
 }
 
+void print_args_error_and_exit(char *argv[]){
+    fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",
+            argv[0]);
+    exit(EXIT_FAILURE);
+}
+
 
 
 int main(int argc, char* argv[])
 {
     int nbrActifs = 0;      // Après votre initialisation, cette variable DOIT contenir le nombre de flux vidéos actifs (de 1 à 4 inclusivement).
-    int core = -1;
     int opt;
-    while ((opt = getopt(argc, argv, "a:")) != -1) {
+
+    int scheduler = SCHED_NORMAL;
+    cpu_set_t cpusetp;
+    CPU_ZERO(&cpusetp);
+    for(int i = 0; i < 4; i++)
+        CPU_SET(i, &cpusetp);
+
+    int are_deadline_options_set = 0;
+    int sched_runtime, sched_deadline, sched_period;
+
+    while ((opt = getopt(argc, argv, "asd:")) != -1) {
         switch (opt) {
             case 'a':
-                core = atoi(optarg);
+                if (strlen(optarg) == 0){
+                    print_args_error_and_exit(argv);
+                }
+                else if (isdigit(optarg[0])){
+                    for(int i = 0; i < 4; i++)
+                        if (i != atoi(optarg)) CPU_CLR(i, &cpusetp);
+                }
+                else if (optarg[0] == 'N'){ 
+                    if (strlen(optarg) < 2)
+                        print_args_error_and_exit(argv);
+                    for(int i = 0; i < 4; i++)
+                        if (i == atoi(optarg+1)) CPU_CLR(i, &cpusetp);
+                }
                 break;
+            case 's':
+                if (strlen(optarg) == 0){
+                    print_args_error_and_exit(argv);
+                }
+                else if (strcmp(optarg, "NORT")){
+                    scheduler = SCHED_NORMAL;
+                }
+                else if (strcmp(optarg, "RR")){
+                    scheduler = SCHED_RR;
+                }
+                else if (strcmp(optarg, "FIFO")){
+                    scheduler = SCHED_FIFO;
+                }
+                else if (strcmp(optarg, "DEADLINE")){
+                    scheduler = SCHED_DEADLINE;
+                }
+                else{
+                    print_args_error_and_exit(argv);
+                }
+                break;
+            case 'd':
+                are_deadline_options_set = 1;
+                char arg[256];
+                strcpy(arg, optarg);
+                char * token = strtok(arg, ",");
+                
+                token = strtok(NULL, ",");
+                sched_runtime = atoi(token);
+                token = strtok(NULL, ",");
+                sched_deadline = atoi(token);
+                token = strtok(NULL, ",");
+                sched_period = atoi(token);
+                break;
+                
             default: /* '?' */
-                fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",
-                        argv[0]);
-                exit(EXIT_FAILURE);
+                print_args_error_and_exit(argv);
         }
+    }
+
+    struct sched_param sch_param;
+    sched_getparam(0, &sch_param);
+    sched_setscheduler(0, scheduler, &sch_param);
+    sched_setaffinity(0, sizeof(cpusetp), &cpusetp);
+
+    if (scheduler == SCHED_DEADLINE && are_deadline_options_set){
+        struct sched_attr attr;
+        sched_getattr(0, &attr, sizeof(struct sched_attr), 0);
+        attr.sched_runtime = sched_runtime;
+        attr.sched_deadline = sched_deadline;
+        attr.sched_period = sched_period;
+        sched_setattr(0, &attr, 0);
     }
 
     nbrActifs = argc - optind;
 
     if (nbrActifs < 1 || nbrActifs > 4){
-        fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",
-                argv[0]);
-        exit(EXIT_FAILURE);
+        print_args_error_and_exit(argv);
     }
 
     struct memPartage zones[nbrActifs];
