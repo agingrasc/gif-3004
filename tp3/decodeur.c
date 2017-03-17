@@ -153,10 +153,7 @@ int main(int argc, char *argv[]) {
     memcpy(&video_info.hauteur, video_mem + 8, 4);
     memcpy(&video_info.canaux, video_mem + 12, 4);
     memcpy(&video_info.fps, video_mem + 16, 4);
-    printf("Info lu:\nlargeur: %d\nhauteur: %d\ncanaux: %d\nfps: %d\n", video_info.largeur, video_info.hauteur,
-           video_info.canaux, video_info.fps);
 
-    
     //init memoire ecrivain
     memPartage mem;
     memPartageHeader memHeader;

@@ -31,7 +31,6 @@ int prepareMemoire(size_t tailleImageEntree, size_t tailleImageSortie){
 void* tempsreel_malloc(size_t taille){
     for(int i = 0; i<4; i++){ 
         if(libre[i] == 1){
-            printf("Captured mem block %d\n", i);
             libre[i] = 0;
             return spaces[i];
         }
@@ -44,7 +43,6 @@ void* tempsreel_malloc(size_t taille){
 void tempsreel_free(void* ptr){
     for(int i = 0; i<4; i++){ 
         if(spaces[i] == ptr){
-            printf("Free mem block %d\n", i);
             libre[i] = 1;
             return;
         }

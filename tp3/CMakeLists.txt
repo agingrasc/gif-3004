@@ -7,6 +7,8 @@ set(PROJECT_INCLUDE_DIR ./)
 set(PROJECT_SOURCE_DIR ./)
 
 set(GENERIC_C_FLAGS "-Wall -ggdb3")
+#set(OPTIMISATION_FLAGS "-march=armv8-a -mtune=cortex-a53 -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -ftree-vectorize -funsafe-math-optimizations -Ofast -funroll-loops -floop-parallelize-all -floop-block -flto")
+set(OPTIMISATION_FLAGS "")
 
 add_definitions(-D__cpluscplus)
 
@@ -37,7 +39,7 @@ set(GRAYSCALER_SRC
         grayscaler.c
         utils.c)
 
-set_source_files_properties(${GRAYSCALER_SRC} ${REDIMENSIONNEUR_SRC} ${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${GENERIC_C_FLAGS} -g")
+set_source_files_properties(${GRAYSCALER_SRC} ${REDIMENSIONNEUR_SRC} ${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${GENERIC_C_FLAGS} ${OPTIMISATION_FLAGS}")
 
 
 add_library(rtos_malloc ${RTOS_MEMORY_SRC})

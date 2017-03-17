@@ -57,17 +57,14 @@ int main(int argc, char **argv) {
             case 'w':
                 optc++;
                 out_width = strtol(argv[optc], NULL, 10);
-                printf("out_width of: %d\n", out_width);
                 break;
             case 'h':
                 optc++;
                 out_height = strtol(argv[optc], NULL, 10);
-                printf("out_height of: %d\n", out_height);
                 break;
             case 'm':
                 optc++;
                 mode = strtol(argv[optc], NULL, 10);
-                printf("mode selected: %d\n", mode);
                 break;
             default:
                 printf("Wrong usage\n");

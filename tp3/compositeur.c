@@ -273,7 +273,6 @@ int main(int argc, char* argv[])
     if (ioctl(fbfd, FBIOGET_VSCREENINFO, &vinfo)) {
         perror("Erreur lors de la requete d'informations sur le framebuffer ");
     }
-    printf("x: %u, y: %u\n", vinfo.grayscale, vinfo.bits_per_pixel);
 
     // On récupère les "vraies" paramètres du framebuffer
     if (ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo)) {
