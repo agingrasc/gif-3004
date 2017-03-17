@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include "allocateurMemoire.h"
 #include "commMemoirePartagee.h"
 #include "jpgd.h"
@@ -59,8 +60,66 @@ int main(int argc, char *argv[]) {
     //recuperer les arguments: file, flux_sortie
     char *filename;
     char *output_flux;
-    filename = (argv[1]);
-    output_flux = (argv[2]);
+
+    int opt;
+    int optc = 0; //program filename
+    int affinity = 1;
+    int core = -1;
+    while ((opt = getopt(argc, argv, "as:")) != -1) {
+        optc++;
+        switch (opt) {
+            case 'a':
+                optc++;
+                if (argv[optc][0] == 'A') {
+                    core = 99;
+                    printf("all core affinity\n");
+                    break;
+                }
+                if (argv[optc][0] == 'N') {
+                    optc++;
+                    core = (argv[optc][0] - 48);
+                    affinity = 0;
+                    printf("will not run on core %d\n", core);
+                    break;
+                }
+                core = (argv[optc][0] - 48);
+                printf("will run exclusively on core %d\n", core);
+                break;
+            case 's':
+                optc++;
+                if (strcmp(argv[optc], "NORT\0") == 0) {
+                    printf("NORT ord!\n");
+                    break;
+                }
+                if (strcmp(argv[optc], "RR\0") == 0) {
+                    printf("RR ord!\n");
+                    break;
+                }
+                if (strcmp(argv[optc], "FIFO\0") == 0) {
+                    printf("FIFO ord!\n");
+                    break;
+                }
+                if (strcmp(argv[optc], "DEADLINE\0") == 0) {
+                    printf("DEADLINE ord!\n");
+                    break;
+                }
+                printf("Mauvais type d'ordonnanceur.\n");
+                exit(EXIT_FAILURE);
+            default:
+                printf("Wrong usage\n");
+                fprintf(stderr, "Usage: %s [-a core] [-s ORD_TYPE] video_file flux_sortie\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+    optc++;
+
+    if ((argc - optc) != 2) {
+        fprintf(stderr, "Usage: %s [-a core] [-s ORD_TYPE] video_file flux_sortie\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    filename = (argv[optc]);
+    optc++;
+    output_flux = (argv[optc]);
     printf("Args: %s, %s\n", filename, output_flux);
 
     int video_fd = open(filename, O_RDONLY);

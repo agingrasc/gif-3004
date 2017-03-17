@@ -6,10 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(PROJECT_INCLUDE_DIR ./)
 set(PROJECT_SOURCE_DIR ./)
 
-set(GENERIC_C_FLAGS
-        -Wall
-        -ggdb3
-)
+set(GENERIC_C_FLAGS "-Wall -ggdb3")
 
 add_definitions(-D__cpluscplus)
 
@@ -32,7 +29,7 @@ set(FILTER_SRC
         filtreur.c
         utils.c)
 
-set_source_files_properties(${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX)
+set_source_files_properties(${FILTER_SRC} ${COMPOSITER_SRC} ${DECODER_SRC} ${RTOS_MEMORY_SRC} PROPERTIES LANGUAGE CXX COMPILE_FLAGS "${GENERIC_C_FLAGS} -g")
 
 
 add_library(rtos_malloc ${RTOS_MEMORY_SRC})
