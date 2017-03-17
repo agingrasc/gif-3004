@@ -8,7 +8,7 @@ set(PROJECT_SOURCE_DIR ./)
 
 set(GENERIC_C_FLAGS "-Wall -ggdb3")
 #set(OPTIMISATION_FLAGS "-march=armv8-a -mtune=cortex-a53 -mfpu=crypto-neon-fp-armv8 -mfloat-abi=hard -ftree-vectorize -funsafe-math-optimizations -Ofast -funroll-loops -floop-parallelize-all -floop-block -flto")
-set(OPTIMISATION_FLAGS "")
+set(OPTIMISATION_FLAGS "-g")
 
 add_definitions(-D__cpluscplus)
 
