@@ -89,7 +89,6 @@ int main(int argc, char **argv) {
     int last_reader_count = 0;
 
     //init memoire
-    prepareMemoire(0, 0);
     struct memPartage memOut, memIn;
     //on attend que la memoire partage avec notre ecrivain soit init et prete
     while(initMemoirePartageeLecteur(memInId, &memIn) == -1 || memIn.tailleDonnees == 0);
@@ -106,6 +105,7 @@ int main(int argc, char **argv) {
     memHeader.largeur = out_width;
     memHeader.fps = memIn.header->fps;
     memHeader.canaux = memIn.header->canaux;
+    prepareMemoire(memIn.tailleDonnees, outSize);
 
     int err = initMemoirePartageeEcrivain(memOutId, &memOut, outSize, &memHeader);
     if (err) {

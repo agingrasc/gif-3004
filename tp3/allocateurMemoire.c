@@ -9,7 +9,7 @@
 #define ALLOC_N_SMALL 100
 #define ALLOC_SMALL_SIZE 1024
 
-#define MAX_MEMORY_SPACE 15
+#define MAX_MEMORY_SPACE 5
 
 static void* spaces[MAX_MEMORY_SPACE];
 static uint8_t libre[MAX_MEMORY_SPACE];
