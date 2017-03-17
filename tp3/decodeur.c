@@ -182,7 +182,6 @@ int main(int argc, char *argv[]) {
     uint32_t current_reader_idx = 0;
     //boucle continu
     while (1) {
-        mem.header->frameWriter++;
 
         if (current_idx >= video_size - 4) {
             current_idx = INFO_SIZE;
@@ -226,6 +225,7 @@ int main(int argc, char *argv[]) {
         //liberation du mutex et mise a jour de notre index prive
         current_idx += compressed_image_size;
         current_reader_idx = mem.header->frameReader;
+        mem.header->frameWriter++;
         pthread_mutex_unlock(&mem.header->mutex);
         while (current_reader_idx == mem.header->frameReader); //on attend apres le lecteur
 

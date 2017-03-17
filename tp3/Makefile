@@ -1,2 +1,2 @@
 copy:
-	rsync build-debug-arm/{compositeur,decodeur,filtreur} pi:~/Downloads/
+	rsync build-debug-arm/{compositeur,decodeur,filtreur,redimensionneur} pi:~/Downloads/

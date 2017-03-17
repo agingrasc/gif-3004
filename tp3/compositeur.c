@@ -182,6 +182,7 @@ void ecrireImage(const int position, const int total,
 
 int main(int argc, char* argv[])
 {
+    prepareMemoire(0, 0);
     int nbrActifs = 0;      // Après votre initialisation, cette variable DOIT contenir le nombre de flux vidéos actifs (de 1 à 4 inclusivement).
     int core = -1;
     int opt;

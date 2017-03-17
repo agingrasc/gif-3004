@@ -9,12 +9,14 @@
 #define ALLOC_N_SMALL 100
 #define ALLOC_SMALL_SIZE 1024
 
-static void* spaces[4];
-static uint8_t libre[4];
+#define MAX_MEMORY_SPACE 12
+
+static void* spaces[MAX_MEMORY_SPACE];
+static uint8_t libre[MAX_MEMORY_SPACE];
 
 int prepareMemoire(size_t tailleImageEntree, size_t tailleImageSortie){
 
-    for(int i = 0; i<4; i++){ 
+    for(int i = 0; i<MAX_MEMORY_SPACE; i++){
         spaces[i] = malloc(4194304);
         libre[i] = 1;
     }

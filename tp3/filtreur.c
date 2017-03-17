@@ -66,15 +66,13 @@ int main(int argc, char* argv[])
         }
     }
 
-
+    prepareMemoire(0, 0);
 
     if ((argc - optind) != 2){
         fprintf(stderr, "Usage: %s [-a core] [-t type_de_filtre] flux_entree1 flux_sortie\n",
                 argv[0]);
         exit(EXIT_FAILURE);
     }
-
-    prepareMemoire(MUCH, MUCH);
 
     struct memPartage zone_lecture;
     struct memPartage zone_ecriture;
