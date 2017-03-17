@@ -188,7 +188,7 @@ int main(int argc, char* argv[])
     while ((opt = getopt(argc, argv, "a:")) != -1) {
         switch (opt) {
             case 'a':
-                core = atoi(optarg);
+                core = strtol(optarg, NULL, 10);
                 break;
             default: /* '?' */
                 fprintf(stderr, "Usage: %s [-a core] flux_entree1 [flux_entree2] [flux_entree3] [flux_entree4]\n",

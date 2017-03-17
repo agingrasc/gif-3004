@@ -46,13 +46,13 @@ int main(int argc, char* argv[])
                              const unsigned int kernel_size, float sigma,
                              const unsigned int n_channels);
     int opt;
-    while ((opt = getopt(argc, argv, "at:")) != -1) {
+    while ((opt = getopt(argc, argv, "a:t:")) != -1) {
         switch (opt) {
             case 'a':
-                core = atoi(optarg);
+                core = strtol(optarg, NULL, 10);
                 break;
             case 't':
-                if (atoi(optarg) == 0){
+                if (strtol(optarg, NULL, 10) == 0){
                     filter_function = lowpassFilter;
                 }
                 else{
@@ -66,7 +66,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    prepareMemoire(0, 0);
 
     if ((argc - optind) != 2){
         fprintf(stderr, "Usage: %s [-a core] [-t type_de_filtre] flux_entree1 flux_sortie\n",
@@ -77,43 +76,47 @@ int main(int argc, char* argv[])
     struct memPartage zone_lecture;
     struct memPartage zone_ecriture;
 
+    int reader_count = 0;
+    int writer_count = 0;
+
     printf("Init lecteur: %s\n", argv[optind]);
     if(initMemoirePartageeLecteur(argv[optind], &zone_lecture) != 0)
         exit(EXIT_FAILURE);
+    while (writer_count == zone_lecture.header->frameWriter);
+    pthread_mutex_lock(&zone_lecture.header->mutex);
 
-    printf("Attente lecteur\n");
-    attenteLecteur(&zone_lecture);
     uint32_t w = zone_lecture.header->largeur;
     uint32_t h = zone_lecture.header->hauteur;
     uint32_t c = zone_lecture.header->canaux;
     size_t tailleDonnees = w*h*c;
+    prepareMemoire(zone_lecture.tailleDonnees, 2*tailleDonnees);
 
     printf("w: %u, h: %u, c: %u\n", w, h, c);
 
-    uint8_t input_image[tailleDonnees];
-    uint8_t output_image[tailleDonnees];
-
     if(initMemoirePartageeEcrivain(argv[optind+1], &zone_ecriture, tailleDonnees, zone_lecture.header) != 0)
         exit(EXIT_FAILURE);
+    pthread_mutex_lock(&zone_ecriture.header->mutex);
 
-    pthread_mutex_unlock(&zone_lecture.header->mutex);
 
     while(1){
-        printf("Lecture!\n");
-        attenteLecteur(&zone_lecture);
-        memcpy(input_image, zone_lecture.data, tailleDonnees);
+
+        // liberation zone_lecture
         zone_lecture.header->frameReader += 1;
+        writer_count = zone_lecture.header->frameWriter;
         pthread_mutex_unlock(&zone_lecture.header->mutex);
 
-        filter_function(h, w, input_image, output_image, 5, 10, c);  
+        filter_function(h, w, zone_lecture.data, zone_ecriture.data, 5, 10, c);
 
-        printf("Ecriture!\n");
-
-        attenteEcrivain(&zone_ecriture);
-        memcpy(zone_ecriture.data, output_image, tailleDonnees);
+        // liberation zone_ecriture
         zone_ecriture.header->frameWriter += 1;
         zone_ecriture.copieCompteur = zone_ecriture.header->frameReader;
+
+        reader_count = zone_ecriture.header->frameReader;
         pthread_mutex_unlock(&zone_ecriture.header->mutex);
+        while (writer_count == zone_lecture.header->frameWriter);
+        pthread_mutex_lock(&zone_lecture.header->mutex);
+        while (reader_count == zone_ecriture.header->frameReader);
+        pthread_mutex_lock(&zone_ecriture.header->mutex);
     }
 
     return 0;

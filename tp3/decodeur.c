@@ -163,10 +163,6 @@ int main(int argc, char *argv[]) {
     memPartageHeader memHeader;
     memHeader.frameWriter = 0;
     memHeader.frameReader = 0;
-    memHeader.hauteur = 0;
-    memHeader.largeur = 0;
-    memHeader.fps = 0;
-    memHeader.canaux = 0;
     memHeader.hauteur = video_info.hauteur;
     memHeader.largeur = video_info.largeur;
     memHeader.fps = video_info.fps;

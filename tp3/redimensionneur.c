@@ -91,9 +91,11 @@ int main(int argc, char **argv) {
     //init memoire
     struct memPartage memOut, memIn;
     //on attend que la memoire partage avec notre ecrivain soit init et prete
-    while(initMemoirePartageeLecteur(memInId, &memIn) == -1 || memIn.tailleDonnees == 0);
+    if (initMemoirePartageeLecteur(memInId, &memIn)) {
+        exit(EXIT_FAILURE);
+    }
     //on attend sur l'ecrivain
-    while (memIn.header->frameWriter == last_writer_count);
+    pthread_mutex_lock(&memIn.header->mutex);
 
     //read only d'une valeur qu'une fois set ne changera pas
     size_t outSize = out_width * out_height * memIn.header->canaux;
@@ -112,6 +114,7 @@ int main(int argc, char **argv) {
         printf("Echec lors de l'init de la memoire ecrivain. \n");
         exit(EXIT_FAILURE);
     }
+    pthread_mutex_lock(&memOut.header->mutex);
 
     int in_height = memIn.header->hauteur;
     int in_width = memIn.header->largeur;
@@ -131,9 +134,6 @@ int main(int argc, char **argv) {
     }
 
     while (1) {
-        //on acquiert les memoires
-        pthread_mutex_lock(&memIn.header->mutex);
-        pthread_mutex_lock(&memOut.header->mutex);
         if (mode == 0) {
             resizeNearestNeighbor(memIn.data, in_height, in_width, memOut.data, out_height, out_width, resGrid, canal);
         }
@@ -154,7 +154,9 @@ int main(int argc, char **argv) {
 
         //on attend de se faire signaler par l'ecrivain precedent qu'une modification a ete faite
         while (last_writer_count == memIn.header->frameWriter);
+        pthread_mutex_lock(&memIn.header->mutex);
         while (last_reader_count == memOut.header->frameReader);
+        pthread_mutex_lock(&memOut.header->mutex);
     }
 
 }
