@@ -105,6 +105,7 @@ int main(int argc, char **argv) {
     memHeader.hauteur = out_height;
     memHeader.largeur = out_width;
     memHeader.fps = memIn.header->fps;
+    memHeader.canaux = memIn.header->canaux;
 
     int err = initMemoirePartageeEcrivain(memOutId, &memOut, outSize, &memHeader);
     if (err) {
@@ -129,7 +130,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-
     while (1) {
         //on acquiert les memoires
         pthread_mutex_lock(&memIn.header->mutex);
@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
         last_writer_count = memIn.header->frameWriter;
         memIn.header->frameReader++;
         pthread_mutex_unlock(&memIn.header->mutex);
+
 
         //on relache la memoire en ecriture
         last_reader_count = memOut.header->frameReader;

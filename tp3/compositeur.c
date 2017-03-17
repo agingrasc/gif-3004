@@ -182,7 +182,6 @@ void ecrireImage(const int position, const int total,
 
 int main(int argc, char* argv[])
 {
-    prepareMemoire(0, 0);
     int nbrActifs = 0;      // Après votre initialisation, cette variable DOIT contenir le nombre de flux vidéos actifs (de 1 à 4 inclusivement).
     int core = -1;
     int opt;
@@ -212,6 +211,13 @@ int main(int argc, char* argv[])
             exit(EXIT_FAILURE);
     }
 
+    size_t frame_size = 0;
+    for (int i = 0; i < nbrActifs; i++) {
+        if (zones[i].tailleDonnees > frame_size) {
+            frame_size = zones[i].tailleDonnees;
+        }
+    }
+    prepareMemoire(frame_size, 0);
 
     // Initialisation des structures nécessaires à l'affichage
     long int screensize = 0;

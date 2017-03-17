@@ -1,4 +1,6 @@
 #include <getopt.h>
+#include <sys/types.h>
+#include <sys/resource.h>
 #include "allocateurMemoire.h"
 #include "commMemoirePartagee.h"
 #include "jpgd.h"
@@ -48,8 +50,11 @@ int validate_header(const char *actual_header) {
 
 int main(int argc, char *argv[]) {
 
-    prepareMemoire(0, 0);
-
+    //struct rlimit limit = {819200 * 1024, RLIM_INFINITY};
+    //if (setrlimit(RLIMIT_AS, &limit) == -1) {
+    //    fprintf(stderr, "setrlimit failure!");
+    //    exit(EXIT_FAILURE);
+    //}
     uint32_t current_idx = 0;
     int err = 0;
     // Écrivez le code de décodage et d'envoi sur la zone mémoire partagée ici!
@@ -168,6 +173,9 @@ int main(int argc, char *argv[]) {
     memHeader.canaux = video_info.canaux;
 
     size_t frame_size = video_info.hauteur * video_info.largeur * video_info.canaux;
+
+    prepareMemoire(0, frame_size);
+
     err = initMemoirePartageeEcrivain(output_flux, &mem, frame_size, &memHeader);
     if (err) {
         printf("Echec init memoire partage ecrivain (decodeur) pour %s.", filename);
