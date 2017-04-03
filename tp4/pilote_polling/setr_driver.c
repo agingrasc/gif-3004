@@ -45,11 +45,11 @@ static int     dev_release(struct inode *, struct file *);
 static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
 
 static struct file_operations fops =
-{
-   .open = dev_open,
-   .read = dev_read,
-   .release = dev_release,
-};
+        {
+                .open = dev_open,
+                .read = dev_read,
+                .release = dev_release,
+        };
 
 // Variables globales et statiques utilisées dans le driver
 static int    majorNumber;                  // Numéro donné par le noyau à notre pilote
@@ -65,26 +65,26 @@ static struct task_struct *task;            // Réfère au thread noyau
 
 // 4 GPIO doivent être assignés pour l'écriture, et 4 en lecture (voir énoncé)
 // Nous vous proposons les choix suivants, mais ce n'est pas obligatoire
-static int  gpiosEcrire[] = {5, 6, 13, 19};             // Correspond aux pins 29, 31, 33 et 35
-static int  gpiosLire[] = {12, 16, 20, 21};             // Correspond aux pins 32, 36, 38, et 40
+static unsigned int  gpiosEcrire[] = {5, 6, 13, 19};             // Correspond aux pins 29, 31, 33 et 35
+static unsigned int  gpiosLire[] = {12, 16, 20, 21};             // Correspond aux pins 32, 36, 38, et 40
 // Les noms des différents GPIO
 static char* gpiosEcrireNoms[] = {"OUT1", "OUT2", "OUT3", "OUT4"};
 static char* gpiosLireNoms[] = {"IN1", "IN2", "IN3", "IN4"};
 
 // Les patrons de balayage (une seule ligne doit être active à la fois)
 static int   patterns[4][4] = {
-    {1, 0, 0, 0},
-    {0, 1, 0, 0},
-    {0, 0, 1, 0},
-    {0, 0, 0, 1}
+        {1, 0, 0, 0},
+        {0, 1, 0, 0},
+        {0, 0, 1, 0},
+        {0, 0, 0, 1}
 };
 
 // Les valeurs du clavier, selon la ligne et la colonne actives
 static char valeursClavier[4][4] = {
-    {'1', '2', '3', 'A'},
-    {'4', '5', '6', 'B'},
-    {'7', '8', '9', 'C'},
-    {'*', '0', '#', 'D'}
+        {'1', '2', '3', 'A'},
+        {'4', '5', '6', 'B'},
+        {'7', '8', '9', 'C'},
+        {'*', '0', '#', 'D'}
 };
 
 // Permet de se souvenir du dernier état du clavier,
@@ -99,7 +99,7 @@ module_param(pausePollingMs, uint, S_IRUGO);
 MODULE_PARM_DESC(pausePollingMs, " Duree de la pause apres chaque polling (en ms, 20ms par defaut)");
 
 // Durée (en ms) du "debounce" des touches
-static int dureeDebounce = 50;
+static unsigned int dureeDebounce = 50;
 
 
 
@@ -108,18 +108,46 @@ static int pollClavier(void *arg){
     int patternIdx, ligneIdx, colIdx, val;
     printk(KERN_INFO "SETR_CLAVIER : Poll clavier declenche! \n");
     while(!kthread_should_stop()){           // Permet de s'arrêter en douceur lorsque kthread_stop() sera appelé
-      set_current_state(TASK_RUNNING);      // On indique qu'on est en train de faire quelque chose
+        set_current_state(TASK_RUNNING);      // On indique qu'on est en train de faire quelque chose
 
-      // TODO
-      // Écrivez le code permettant
-      // 1) De passer au travers de tous les patrons de balayage
-      // 2) Pour chaque patron, vérifier la valeur des lignes d'entrée
-      // 3) Selon ces valeurs et le contenu de dernierEtat, déterminer si une nouvelle touche a été pressée
-      // 4) Mettre à jour le buffer et dernierEtat en vous assurant d'éviter les race conditions avec le reste du module
+        // TODO
+        // Écrivez le code permettant
+        // 1) De passer au travers de tous les patrons de balayage
+        // 2) Pour chaque patron, vérifier la valeur des lignes d'entrée
+        // 3) Selon ces valeurs et le contenu de dernierEtat, déterminer si une nouvelle touche a été pressée
+        // 4) Mettre à jour le buffer et dernierEtat en vous assurant d'éviter les race conditions avec le reste du module
+        char valeurLues[16] = {0};
+        int nbrValeurLues = 0;
+        for (ligneIdx = 0; ligneIdx < 4; ligneIdx++) {
+            gpio_set_value(gpiosEcrire[ligneIdx], 1);
+            for (colIdx = 0; colIdx < 4; colIdx++) {
+                val = gpio_get_value(gpiosLire[colIdx]);
+                if (val && !dernierEtat[ligneIdx][colIdx]) {
+                    valeurLues[nbrValeurLues] = valeursClavier[ligneIdx][colIdx];
+                    nbrValeurLues++;
+                }
+                dernierEtat[ligneIdx][colIdx] = val;
+            }
+            gpio_set_value(gpiosEcrire[ligneIdx], 1);
+        }
+
+        // on ne gere pas le ghosting au-dela de 2
+        if (nbrValeurLues < 3) {
+
+            // zone critique
+            mutex_lock(&sync);
+
+            int i;
+            for (i = 0; i < nbrValeurLues; i++) {
+                data[posCouranteEcriture] = valeurLues[i];
+                posCouranteEcriture = (posCouranteEcriture + 1) % TAILLE_BUFFER;
+            }
+            mutex_unlock(&sync);
+        }
 
 
-      set_current_state(TASK_INTERRUPTIBLE); // On indique qu'on peut ere interrompu
-      msleep(pausePollingMs);                // On se met en pause un certain temps
+        set_current_state(TASK_INTERRUPTIBLE); // On indique qu'on peut ere interrompu
+        msleep(pausePollingMs);                // On se met en pause un certain temps
     }
     printk(KERN_INFO "SETR_CLAVIER : Poll clavier stop! \n");
     return 0;
@@ -133,25 +161,25 @@ static int __init setrclavier_init(void){
     // On enregistre notre pilote
     majorNumber = register_chrdev(0, DEV_NAME, &fops);
     if (majorNumber<0){
-      printk(KERN_ALERT "SETR_CLAVIER : Erreur lors de l'appel a register_chrdev!\n");
-      return majorNumber;
+        printk(KERN_ALERT "SETR_CLAVIER : Erreur lors de l'appel a register_chrdev!\n");
+        return majorNumber;
     }
 
     // Création de la classe de périphérique
     setrClasse = class_create(THIS_MODULE, CLS_NAME);
     if (IS_ERR(setrClasse)){
-      unregister_chrdev(majorNumber, DEV_NAME);
-      printk(KERN_ALERT "SETR_CLAVIER : Erreur lors de la creation de la classe de peripherique\n");
-      return PTR_ERR(setrClasse);
+        unregister_chrdev(majorNumber, DEV_NAME);
+        printk(KERN_ALERT "SETR_CLAVIER : Erreur lors de la creation de la classe de peripherique\n");
+        return PTR_ERR(setrClasse);
     }
 
     // Création du pilote de périphérique associé
     setrDevice = device_create(setrClasse, NULL, MKDEV(majorNumber, 0), NULL, DEV_NAME);
     if (IS_ERR(setrDevice)){
-      class_destroy(setrClasse);
-      unregister_chrdev(majorNumber, DEV_NAME);
-      printk(KERN_ALERT "SETR_CLAVIER : Erreur lors de la creation du pilote de peripherique\n");
-      return PTR_ERR(setrDevice);
+        class_destroy(setrClasse);
+        unregister_chrdev(majorNumber, DEV_NAME);
+        printk(KERN_ALERT "SETR_CLAVIER : Erreur lors de la creation du pilote de peripherique\n");
+        return PTR_ERR(setrDevice);
     }
 
     // TODO
@@ -162,6 +190,13 @@ static int __init setrclavier_init(void){
     // Vous devez mettre en place un "debouncing" en utilisant le paramètre dureeDebounce défini plus haut.
     //
     // Vous devez également initialiser le mutex de synchronisation.
+    for (i = 0; i < 4; i++) {
+        gpio_request_one(gpiosEcrire[i], GPIOF_OUT_INIT_LOW, gpiosEcrireNoms[i]);
+        gpio_request_one(gpiosLire[i], GPIOF_IN, gpiosLireNoms[i]);
+        gpio_set_debounce(gpiosLire[i], dureeDebounce);
+    }
+
+    mutex_init(&sync);
 
 
 
@@ -183,6 +218,10 @@ static void __exit setrclavier_exit(void){
     // TODO
     // Écrivez le code permettant de relâcher (libérer) les GPIO
     // Vous aurez pour cela besoin de la fonction gpio_free
+    for (i = 0; i < 4; i++) {
+        gpio_free(gpiosEcrire[i]);
+        gpio_free(gpiosLire[i]);
+    }
 
     // On retire correctement les différentes composantes du pilote
     device_destroy(setrClasse, MKDEV(majorNumber, 0));
@@ -201,9 +240,9 @@ static int dev_open(struct inode *inodep, struct file *filep){
     return 0;
 }
 static int dev_release(struct inode *inodep, struct file *filep){
-   printk(KERN_INFO "SETR_CLAVIER : Fermeture!\n");
-   // Rien à faire ici, si ce n'est retourner une valeur de succès
-   return 0;
+    printk(KERN_INFO "SETR_CLAVIER : Fermeture!\n");
+    // Rien à faire ici, si ce n'est retourner une valeur de succès
+    return 0;
 }
 
 static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset){
@@ -220,6 +259,38 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
     // revienne alors à 0. Il est donc tout à fait possible que posCouranteEcriture soit INFÉRIEUR à
     // posCouranteLecture, et vous devez gérer ce cas sans perdre de caractères et en respectant les
     // autres conditions (par exemple, ne jamais copier plus que len caractères).
+    mutex_lock(&sync);
+    int nbrOctetsDisponibles = 0;
+
+    // logique pour les tetes lecture/ecriture du buffer circulaire
+    // TODO: valider!
+    if (posCouranteEcriture < posCouranteLecture) {
+        nbrOctetsDisponibles = TAILLE_BUFFER - posCouranteLecture + posCouranteEcriture;
+    }
+    else {
+        nbrOctetsDisponibles = posCouranteEcriture - posCouranteLecture;
+    }
+
+    int nbrOctetsAEcrire = 0;
+    // on prend le minimum
+    if (nbrOctetsDisponibles < len) {
+        nbrOctetsAEcrire = nbrOctetsDisponibles;
+    }
+    else {
+        nbrOctetsAEcrire = len;
+    }
+
+    char buffACopier[nbrOctetsAEcrire];
+
+    int i;
+    for (i = 0; i < nbrOctetsAEcrire; i++) {
+        int idx = (posCouranteLecture + i) % TAILLE_BUFFER;
+        buffACopier[i] = data[idx];
+    }
+
+    long err = copy_to_user(buffer, buffACopier, nbrOctetsAEcrire);
+
+    mutex_unlock(&sync);
 
 }
 
@@ -229,6 +300,6 @@ module_exit(setrclavier_exit);
 
 // Description du module
 MODULE_LICENSE("GPL");            // Licence : laissez "GPL"
-MODULE_AUTHOR("Vous!");           // Vos noms
+MODULE_AUTHOR("Alexandre Gingras-Courchesne et Felix Pelletier");           // Vos noms
 MODULE_DESCRIPTION("Lecteur de clavier externe");  // Description du module
 MODULE_VERSION("0.2");            // Numéri de version
