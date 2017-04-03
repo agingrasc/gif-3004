@@ -124,11 +124,12 @@ static int pollClavier(void *arg){
                 val = gpio_get_value(gpiosLire[colIdx]);
                 if (val && !dernierEtat[ligneIdx][colIdx]) {
                     valeurLues[nbrValeurLues] = valeursClavier[ligneIdx][colIdx];
+                    printk(KERN_INFO "SETR_CLAVIER : val! \n");
                     nbrValeurLues++;
                 }
                 dernierEtat[ligneIdx][colIdx] = val;
             }
-            gpio_set_value(gpiosEcrire[ligneIdx], 1);
+            gpio_set_value(gpiosEcrire[ligneIdx], 0);
         }
 
         // on ne gere pas le ghosting au-dela de 2
@@ -144,7 +145,6 @@ static int pollClavier(void *arg){
             }
             mutex_unlock(&sync);
         }
-
 
         set_current_state(TASK_INTERRUPTIBLE); // On indique qu'on peut ere interrompu
         msleep(pausePollingMs);                // On se met en pause un certain temps
@@ -287,10 +287,15 @@ static ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *of
         int idx = (posCouranteLecture + i) % TAILLE_BUFFER;
         buffACopier[i] = data[idx];
     }
+    posCouranteLecture = (posCouranteLecture + nbrOctetsAEcrire) % TAILLE_BUFFER;
 
     long err = copy_to_user(buffer, buffACopier, nbrOctetsAEcrire);
+    if (err) {
+        printk(KERN_INFO "SETR_CLAVIER: Erreur lors du copy_to_user \n");
+    }
 
     mutex_unlock(&sync);
+    return nbrOctetsAEcrire;
 
 }
 
