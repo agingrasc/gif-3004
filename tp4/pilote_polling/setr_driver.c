@@ -72,7 +72,7 @@ static char* gpiosEcrireNoms[] = {"OUT1", "OUT2", "OUT3", "OUT4"};
 static char* gpiosLireNoms[] = {"IN1", "IN2", "IN3", "IN4"};
 
 // Les patrons de balayage (une seule ligne doit être active à la fois)
-static int   patterns[4][4] = {
+static int patterns[4][4] = {
         {1, 0, 0, 0},
         {0, 1, 0, 0},
         {0, 0, 1, 0},
@@ -116,18 +116,20 @@ static int pollClavier(void *arg){
         // 2) Pour chaque patron, vérifier la valeur des lignes d'entrée
         // 3) Selon ces valeurs et le contenu de dernierEtat, déterminer si une nouvelle touche a été pressée
         // 4) Mettre à jour le buffer et dernierEtat en vous assurant d'éviter les race conditions avec le reste du module
+        mutex_lock(&sync);
         char valeurLues[16] = {0};
         int nbrValeurLues = 0;
         for (ligneIdx = 0; ligneIdx < 4; ligneIdx++) {
             gpio_set_value(gpiosEcrire[ligneIdx], 1);
             for (colIdx = 0; colIdx < 4; colIdx++) {
                 val = gpio_get_value(gpiosLire[colIdx]);
-                if (val && !dernierEtat[ligneIdx][colIdx]) {
+                if (val && dernierEtat[ligneIdx][colIdx] == 0) {
                     valeurLues[nbrValeurLues] = valeursClavier[ligneIdx][colIdx];
-                    printk(KERN_INFO "SETR_CLAVIER : val! \n");
                     nbrValeurLues++;
                 }
-                dernierEtat[ligneIdx][colIdx] = val;
+                if (val != dernierEtat[ligneIdx][colIdx]) {
+                    dernierEtat[ligneIdx][colIdx] = val;
+                }
             }
             gpio_set_value(gpiosEcrire[ligneIdx], 0);
         }
@@ -136,16 +138,15 @@ static int pollClavier(void *arg){
         if (nbrValeurLues < 3) {
 
             // zone critique
-            mutex_lock(&sync);
 
             int i;
             for (i = 0; i < nbrValeurLues; i++) {
                 data[posCouranteEcriture] = valeurLues[i];
                 posCouranteEcriture = (posCouranteEcriture + 1) % TAILLE_BUFFER;
             }
-            mutex_unlock(&sync);
         }
 
+        mutex_unlock(&sync);
         set_current_state(TASK_INTERRUPTIBLE); // On indique qu'on peut ere interrompu
         msleep(pausePollingMs);                // On se met en pause un certain temps
     }
