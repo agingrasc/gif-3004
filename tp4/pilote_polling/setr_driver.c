@@ -116,7 +116,6 @@ static int pollClavier(void *arg){
         // 2) Pour chaque patron, vérifier la valeur des lignes d'entrée
         // 3) Selon ces valeurs et le contenu de dernierEtat, déterminer si une nouvelle touche a été pressée
         // 4) Mettre à jour le buffer et dernierEtat en vous assurant d'éviter les race conditions avec le reste du module
-        mutex_lock(&sync);
         char valeurLues[16] = {0};
         int nbrValeurLues = 0;
         for (ligneIdx = 0; ligneIdx < 4; ligneIdx++) {
@@ -138,15 +137,15 @@ static int pollClavier(void *arg){
         if (nbrValeurLues < 3) {
 
             // zone critique
-
+            mutex_lock(&sync);
             int i;
             for (i = 0; i < nbrValeurLues; i++) {
                 data[posCouranteEcriture] = valeurLues[i];
                 posCouranteEcriture = (posCouranteEcriture + 1) % TAILLE_BUFFER;
             }
+            mutex_unlock(&sync);
         }
 
-        mutex_unlock(&sync);
         set_current_state(TASK_INTERRUPTIBLE); // On indique qu'on peut ere interrompu
         msleep(pausePollingMs);                // On se met en pause un certain temps
     }
