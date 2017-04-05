@@ -123,7 +123,6 @@ void func_tasklet_polling(unsigned long param){
     // 5) Mettre à jour le buffer et dernierEtat en vous assurant d'éviter les race conditions avec le reste du module
     // 6) Remettre toutes les lignes à 1 (pour réarmer l'interruption)
     // 7) Réactiver le traitement des interruptions
-    local_irq_disable();
     int i;
     for (i = 0; i < 4; i++) {
         gpio_set_value(gpiosEcrire[i], 0);
@@ -159,9 +158,8 @@ void func_tasklet_polling(unsigned long param){
 
     for (i = 0; i < 4; i++) {
         gpio_set_value(gpiosEcrire[i], 1);
-        enable_irq(irqId[i]);
     }
-    local_irq_enable();
+    atomic_set(&irqActif, 1);
 }
 
 // On déclare le tasklet avec la macro DECLARE_TASKLET
@@ -178,11 +176,9 @@ static irq_handler_t  setr_irq_handler(unsigned int irq, void *dev_id, struct pt
     // Voyez les commentaires du tasklet pour une piste potentielle de synchronisation.
     // Le seul travail de cette IRQ est de céduler un tasklet qui fera le travail
     // TODO
-    int i;
-    for (i = 0; i < 4; i++) {
-        disable_irq_nosync(irqId[i]);
+    if (atomic_dec_and_test(&irqActif)) {
+        tasklet_schedule(&tasklet_polling);
     }
-    tasklet_schedule(&tasklet_polling);
 
     // On retourne en indiquant qu'on a géré l'interruption
     return (irq_handler_t) IRQ_HANDLED;
