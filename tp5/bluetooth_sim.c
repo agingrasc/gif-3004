@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define BUFFER_SIZE 10
+#define BUFFER_SIZE 1
 
 int main(int argc, char *argv[]){
 
@@ -19,10 +19,14 @@ int main(int argc, char *argv[]){
     char buffer[BUFFER_SIZE];
 
     while (1){
-        int data_read = 0;
-        if ((data_read = read(reader, buffer, BUFFER_SIZE)) != -1)
-            write(writer, buffer, data_read);
-        usleep(0);
+        for (int i = 0; i<BUFFER_SIZE;){
+            int data_read = 0;
+            if ((data_read = read(reader, buffer+i, BUFFER_SIZE-i)) > 0){
+                i += data_read;
+            }
+        }
+        write(writer, buffer, BUFFER_SIZE);
+        //usleep(0);
     }
 
 }

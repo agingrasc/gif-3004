@@ -8,7 +8,7 @@
 #include <alsa/asoundlib.h>
 #include "fifo.h"
 
-#define BUFFER_FRAMES 32
+#define BUFFER_FRAMES 1
 
 int open_sound(char* device, snd_pcm_t **capture_handle, char** buffer){
     int err;

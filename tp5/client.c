@@ -86,7 +86,7 @@ int main (int argc, char *argv[]){
 
 	snd_pcm_t *playback_handle;
 
-    audio_open("sysdefault:CARD=LX3000", &playback_handle);
+    audio_open("sysdefault:CARD=DG", &playback_handle);
     int reader = setr_fifo_reader("/tmp/bluetooth_out"); 
 
     unsigned char buffer[BUFFER_SIZE];
@@ -110,33 +110,33 @@ int main (int argc, char *argv[]){
 
     while(1){
         int data_read;
-        if ((data_read = read(reader, buffer+data_in_buffer, BUFFER_SIZE-data_in_buffer)) > 0){
-            float **sample_data;
-            int channels, samples;
-            int err;
+        if ((data_read = read(reader, buffer+data_in_buffer, 1024-data_in_buffer)) > 0){
             data_in_buffer += data_read;
-            data_consumed = stb_vorbis_decode_frame_pushdata(decoder, buffer, data_in_buffer, &channels, &sample_data, &samples);
-            printf("data_in_buffer: %i\n", data_in_buffer);
-            printf("data_consumed: %i\n", data_consumed);
-            if (samples > 0){
-                int16_t buf[samples];
-                for(int i=0; i<samples; i++){
-                    buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
+        }
+        float **sample_data;
+        int channels, samples;
+        int err;
+        data_consumed = stb_vorbis_decode_frame_pushdata(decoder, buffer, data_in_buffer, &channels, &sample_data, &samples);
+        printf("data_in_buffer: %i\n", data_in_buffer);
+        printf("data_consumed: %i\n", data_consumed);
+        if (samples > 0){
+            int16_t buf[samples];
+            for(int i=0; i<samples; i++){
+                buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
+            }
+            if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
+                if (err == -EPIPE){
+                    snd_pcm_prepare(playback_handle);
+                    snd_pcm_writei (playback_handle, buf, samples);
                 }
-                if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
-                    if (err == -EPIPE){
-                        snd_pcm_prepare(playback_handle);
-                        snd_pcm_writei (playback_handle, buf, samples);
-                    }
-                    else{
-                        fprintf (stderr, "write to audio interface failed (%s)\n",
-                            snd_strerror (err));
-                        exit (1);
-                    }
+                else{
+                    fprintf (stderr, "write to audio interface failed (%s)\n",
+                        snd_strerror (err));
+                    exit (1);
                 }
             }
-            data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);
         }
+        data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);
     }
 
     close(reader);
