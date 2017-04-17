@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#define BUFFER_SIZE 1
+#define BUFFER_SIZE 10
 
 int main(int argc, char *argv[]){
 
@@ -13,14 +13,15 @@ int main(int argc, char *argv[]){
         printf("Two arguments needed");
         exit(1);
     }
-    int reader = setr_fifo_reader("/tmp/bluetooth_in");
     int writer = setr_fifo_writer("/tmp/bluetooth_out");
+    int reader = setr_fifo_reader("/tmp/bluetooth_in");
 
     char buffer[BUFFER_SIZE];
 
     while (1){
-        if (read(reader, buffer, BUFFER_SIZE) != -1)
-            write(writer, buffer, BUFFER_SIZE);
+        int data_read = 0;
+        if ((data_read = read(reader, buffer, BUFFER_SIZE)) != -1)
+            write(writer, buffer, data_read);
         usleep(0);
     }
 

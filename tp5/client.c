@@ -110,7 +110,7 @@ int main (int argc, char *argv[]){
 
     while(1){
         int data_read;
-        if ((data_read = read(reader, buffer+data_in_buffer, BUFFER_SIZE-data_in_buffer)) != -1){
+        if ((data_read = read(reader, buffer+data_in_buffer, BUFFER_SIZE-data_in_buffer)) > 0){
             float **sample_data;
             int channels, samples;
             int err;
@@ -124,9 +124,15 @@ int main (int argc, char *argv[]){
                     buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
                 }
                 if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
-                    fprintf (stderr, "write to audio interface failed (%s)\n",
-                         snd_strerror (err));
-                    exit (1);
+                    if (err == -EPIPE){
+                        snd_pcm_prepare(playback_handle);
+                        snd_pcm_writei (playback_handle, buf, samples);
+                    }
+                    else{
+                        fprintf (stderr, "write to audio interface failed (%s)\n",
+                            snd_strerror (err));
+                        exit (1);
+                    }
                 }
             }
             data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);

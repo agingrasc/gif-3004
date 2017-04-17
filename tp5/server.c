@@ -8,8 +8,7 @@
 #include <alsa/asoundlib.h>
 #include "fifo.h"
 
-#define READ 1024
-signed char readbuffer[READ*4+44]; /* out of the data segment, not the stack */ 
+#define BUFFER_FRAMES 32
 
 int open_sound(char* device, snd_pcm_t **capture_handle, char** buffer){
     int err;
@@ -96,7 +95,7 @@ int open_sound(char* device, snd_pcm_t **capture_handle, char** buffer){
 
     fprintf(stderr, "audio interface prepared\n");
 
-    *buffer = (char*) malloc(128 * snd_pcm_format_width(format) / 8 * 2);
+    *buffer = (char*) malloc(BUFFER_FRAMES * snd_pcm_format_width(format) / 8 * 2);
 
     fprintf(stderr, "buffer allocated\n");
 }
@@ -115,7 +114,7 @@ int main (int argc, char *argv[]){
     int eos=0;
     char *buffer;
     snd_pcm_t *capture_handle;
-    int buffer_frames = 128;
+    int buffer_frames = BUFFER_FRAMES;
 
     int pipe_fd = setr_fifo_writer("/tmp/bluetooth_in");
     FILE* pipe = fdopen(pipe_fd, "w");
@@ -138,7 +137,7 @@ int main (int argc, char *argv[]){
 
     vorbis_info_init(&vi);
 
-    if ((err = vorbis_encode_init(&vi,1,44100, -1, 128000, -1))) {
+    if ((err = vorbis_encode_init(&vi,1,44100, 128000, -1, -1))) {
         printf("vorbis_encode_init failed\n");
         exit(1);
     }
@@ -175,7 +174,7 @@ int main (int argc, char *argv[]){
 
     }
 
-    for (int i = 0; i < 5000; ) {
+    while (1){
         // La fonction snd_pcm_readi est la clé, c'est elle qui permet d'acquérir le signal
         // de manière effective et de le transférer dans un buffer
         if ((err = snd_pcm_readi (capture_handle, buffer, buffer_frames)) != buffer_frames) {
@@ -183,12 +182,12 @@ int main (int argc, char *argv[]){
                      err, snd_strerror (err));
             exit (1);
         }
-        float **vorbis_buffer=vorbis_analysis_buffer(&vd,128);
-        for(int i = 0; i < (128); i++){
+        float **vorbis_buffer=vorbis_analysis_buffer(&vd,buffer_frames);
+        for(int i = 0; i < (buffer_frames); i++){
             int16_t *sample = (int16_t*) &buffer[i*2];
             vorbis_buffer[0][i] = *sample / 32768.f;
         }
-        vorbis_analysis_wrote(&vd,128);
+        vorbis_analysis_wrote(&vd,buffer_frames);
         while(vorbis_analysis_blockout(&vd,&vb)==1){
 
             /* analysis, assume we want to use bitrate management */
@@ -214,7 +213,6 @@ int main (int argc, char *argv[]){
                 }
             }
         }
-        fprintf(stderr, "read %d done\n", i);
     }
 
     vorbis_analysis_wrote(&vd,0);
