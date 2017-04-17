@@ -6,6 +6,7 @@
 #include <math.h>
 #include <vorbis/vorbisenc.h>
 #include <alsa/asoundlib.h>
+#include "fifo.h"
 
 #define READ 1024
 signed char readbuffer[READ*4+44]; /* out of the data segment, not the stack */ 
@@ -116,6 +117,11 @@ int main (int argc, char *argv[]){
     snd_pcm_t *capture_handle;
     int buffer_frames = 128;
 
+    int pipe_fd = setr_fifo_writer("/tmp/bluetooth_in");
+    FILE* pipe = fdopen(pipe_fd, "w");
+
+    FILE* outfile = pipe;
+
     open_sound(argv[1], &capture_handle, &buffer);
 
     ogg_stream_state os; /* take physical pages, weld into a logical
@@ -163,13 +169,13 @@ int main (int argc, char *argv[]){
         while(!eos){
             int result=ogg_stream_flush(&os,&og);
             if(result==0)break;
-            fwrite(og.header,1,og.header_len,stdout);
-            fwrite(og.body,1,og.body_len,stdout);
+            fwrite(og.header,1,og.header_len,outfile);
+            fwrite(og.body,1,og.body_len,outfile);
         }
 
     }
 
-    for (int i = 0; i < 5000; ++i) {
+    for (int i = 0; i < 5000; ) {
         // La fonction snd_pcm_readi est la clé, c'est elle qui permet d'acquérir le signal
         // de manière effective et de le transférer dans un buffer
         if ((err = snd_pcm_readi (capture_handle, buffer, buffer_frames)) != buffer_frames) {
@@ -198,8 +204,8 @@ int main (int argc, char *argv[]){
                 while(!eos){
                   int result=ogg_stream_pageout(&os,&og);
                   if(result==0)break;
-                  fwrite(og.header,1,og.header_len,stdout);
-                  fwrite(og.body,1,og.body_len,stdout);
+                  fwrite(og.header,1,og.header_len,outfile);
+                  fwrite(og.body,1,og.body_len,outfile);
 
                   /* this could be set above, but for illustrative purposes, I do
                      it here (to show that vorbis does know where the stream ends) */
