@@ -107,6 +107,8 @@ int open_sound(char* device, snd_pcm_t **capture_handle, char** buffer){
     *buffer = (char*) malloc(BUFFER_FRAMES * snd_pcm_format_width(format) / 8 * 2);
 
     fprintf(stderr, "buffer allocated\n");
+
+    return 0;
 }
 
 int close_sound(snd_pcm_t *capture_handle, char* buffer){
@@ -116,6 +118,8 @@ int close_sound(snd_pcm_t *capture_handle, char* buffer){
 
     snd_pcm_close (capture_handle);
     fprintf(stderr, "audio interface closed\n");
+
+    return 0;
 }
 
 int main (int argc, char *argv[]){
