@@ -9,6 +9,7 @@
 #include "stb_vorbis.c"
 
 #define BUFFER_SIZE 10240
+#define MINI_BUFFER_SIZE 512
 
 int reajust_buffer(unsigned char *buffer, int data_consumed, int data_in_buffer){
     int data_copied = data_in_buffer-data_consumed;
@@ -67,6 +68,23 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 		exit (1);
 	}
 
+    unsigned int min=1000, max=50000;
+    int mindir=1, maxdir=-1;
+    if ((err = snd_pcm_hw_params_set_buffer_time_minmax (*playback_handle, hw_params, &min, &mindir, &max, &maxdir)) < 0) {
+		fprintf (stderr, "cannot set channel count (%s)\n",
+			 snd_strerror (err));
+		exit (1);
+	}
+
+    unsigned int val;
+    int dir;
+    snd_pcm_hw_params_get_buffer_time(hw_params, &val, &dir);
+    printf("buffer_time: %u, dir: %i\n", val, dir);
+    snd_pcm_hw_params_get_buffer_time_min(hw_params, &val, &dir);
+    printf("buffer_time (min): %u, dir: %i\n", val, dir);
+    snd_pcm_hw_params_get_buffer_time_max(hw_params, &val, &dir);
+    printf("buffer_time (max): %u, dir: %i\n", val, dir);
+
 	if ((err = snd_pcm_hw_params (*playback_handle, hw_params)) < 0) {
 		fprintf (stderr, "cannot set parameters (%s)\n",
 			 snd_strerror (err));
@@ -84,15 +102,22 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 
 int main (int argc, char *argv[]){
 
+    if (argc < 2){
+        return 1;
+    }
+
 	snd_pcm_t *playback_handle;
 
-    audio_open("sysdefault:CARD=DG", &playback_handle);
-    int reader = setr_fifo_reader("/dev/rfcomm0");
+    audio_open(argv[1], &playback_handle);
+    int reader = open("/dev/rfcomm0", O_RDONLY);
+    printf("Open sucessful\n");
 
     unsigned char buffer[BUFFER_SIZE];
     int data_in_buffer; 
     for(int i = 0; i<BUFFER_SIZE;){
+        printf("Attempting to read\n");
         int bytes_read = read(reader, buffer+i, BUFFER_SIZE-i);
+        printf("Byte read: %d\n", bytes_read);
         if (bytes_read > 0)
             i += bytes_read;
     }
@@ -108,9 +133,12 @@ int main (int argc, char *argv[]){
 
     data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);
 
+    snd_pcm_sframes_t delay;
+
     while(1){
         int data_read;
-        if ((data_read = read(reader, buffer+data_in_buffer, 1024-data_in_buffer)) > 0){
+        printf("Attempting to read\n");
+        if ((data_read = read(reader, buffer+data_in_buffer, MINI_BUFFER_SIZE-data_in_buffer)) > 0){
             data_in_buffer += data_read;
         }
         float **sample_data;
@@ -119,6 +147,9 @@ int main (int argc, char *argv[]){
         data_consumed = stb_vorbis_decode_frame_pushdata(decoder, buffer, data_in_buffer, &channels, &sample_data, &samples);
         printf("data_in_buffer: %i\n", data_in_buffer);
         printf("data_consumed: %i\n", data_consumed);
+        if(snd_pcm_delay(playback_handle, &delay) == 0)
+            printf("delay: %f\n", delay/44100.0f); 
+
         if (samples > 0){
             int16_t buf[samples];
             for(int i=0; i<samples; i++){

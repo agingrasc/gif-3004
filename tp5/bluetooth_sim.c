@@ -26,7 +26,7 @@ int main(int argc, char *argv[]){
             }
         }
         write(writer, buffer, BUFFER_SIZE);
-        //usleep(0);
+        usleep(0);
     }
 
 }
