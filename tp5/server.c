@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <signal.h>
 #include <time.h>
 #include <math.h>
 #include <vorbis/vorbisenc.h>
@@ -9,6 +10,14 @@
 #include "fifo.h"
 
 #define BUFFER_FRAMES 1
+
+int closing = 0;
+
+void gereSignal(int signo) {
+    if (signo == SIGTERM || signo == SIGPIPE){
+        closing = 1;
+    }
+}
 
 int open_sound(char* device, snd_pcm_t **capture_handle, char** buffer){
     int err;
@@ -116,9 +125,11 @@ int main (int argc, char *argv[]){
     snd_pcm_t *capture_handle;
     int buffer_frames = BUFFER_FRAMES;
 
+    signal(SIGTERM, gereSignal);
+    signal(SIGPIPE, gereSignal);
+
     int pipe_fd = setr_fifo_writer("/tmp/bluetooth_in");
     FILE* pipe = fdopen(pipe_fd, "w");
-
     FILE* outfile = pipe;
 
     open_sound(argv[1], &capture_handle, &buffer);
@@ -174,7 +185,9 @@ int main (int argc, char *argv[]){
 
     }
 
-    while (1){
+    snd_pcm_sframes_t delay;
+
+    while (!closing){
         // La fonction snd_pcm_readi est la clé, c'est elle qui permet d'acquérir le signal
         // de manière effective et de le transférer dans un buffer
         if ((err = snd_pcm_readi (capture_handle, buffer, buffer_frames)) != buffer_frames) {
@@ -182,6 +195,10 @@ int main (int argc, char *argv[]){
                      err, snd_strerror (err));
             exit (1);
         }
+
+        if(snd_pcm_delay(capture_handle, &delay) == 0)
+            printf("delay: %f\n", delay/44100.0f); 
+
         float **vorbis_buffer=vorbis_analysis_buffer(&vd,buffer_frames);
         for(int i = 0; i < (buffer_frames); i++){
             int16_t *sample = (int16_t*) &buffer[i*2];
@@ -224,5 +241,7 @@ int main (int argc, char *argv[]){
     vorbis_info_clear(&vi);
 
     close_sound(capture_handle, buffer);
+
+    exit(2);
 
 }
