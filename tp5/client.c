@@ -87,7 +87,7 @@ int main (int argc, char *argv[]){
 	snd_pcm_t *playback_handle;
 
     audio_open("sysdefault:CARD=DG", &playback_handle);
-    int reader = setr_fifo_reader("/tmp/bluetooth_out"); 
+    int reader = setr_fifo_reader("/dev/rfcomm0");
 
     unsigned char buffer[BUFFER_SIZE];
     int data_in_buffer; 
