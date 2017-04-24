@@ -109,12 +109,15 @@ int main (int argc, char *argv[]){
 	snd_pcm_t *playback_handle;
 
     audio_open(argv[1], &playback_handle);
-    int reader = setr_fifo_reader("/tmp/bluetooth_out"); 
+    int reader = open("/dev/rfcomm0", O_RDONLY);
+    printf("Open sucessful\n");
 
     unsigned char buffer[BUFFER_SIZE];
     int data_in_buffer; 
     for(int i = 0; i<BUFFER_SIZE;){
+        printf("Attempting to read\n");
         int bytes_read = read(reader, buffer+i, BUFFER_SIZE-i);
+        printf("Byte read: %d\n", bytes_read);
         if (bytes_read > 0)
             i += bytes_read;
     }
@@ -135,6 +138,7 @@ int main (int argc, char *argv[]){
     int emptying_mode = 1;
     while(1){
         int data_read;
+        printf("Attempting to read\n");
         if ((data_read = read(reader, buffer+data_in_buffer, MINI_BUFFER_SIZE-data_in_buffer)) > 0){
             data_in_buffer += data_read;
             if (data_read < MINI_BUFFER_SIZE-data_in_buffer)
