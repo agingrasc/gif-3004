@@ -9,7 +9,7 @@
 #include "stb_vorbis.c"
 
 #define BUFFER_SIZE 10240
-#define MINI_BUFFER_SIZE 512
+#define MINI_BUFFER_SIZE 10240
 
 int reajust_buffer(unsigned char *buffer, int data_consumed, int data_in_buffer){
     int data_copied = data_in_buffer-data_consumed;
@@ -132,10 +132,13 @@ int main (int argc, char *argv[]){
 
     snd_pcm_sframes_t delay;
 
+    int emptying_mode = 1;
     while(1){
         int data_read;
         if ((data_read = read(reader, buffer+data_in_buffer, MINI_BUFFER_SIZE-data_in_buffer)) > 0){
             data_in_buffer += data_read;
+            if (data_read < MINI_BUFFER_SIZE-data_in_buffer)
+                emptying_mode = 0;
         }
         float **sample_data;
         int channels, samples;
@@ -146,13 +149,14 @@ int main (int argc, char *argv[]){
         if(snd_pcm_delay(playback_handle, &delay) == 0)
             printf("delay: %f\n", delay/44100.0f); 
 
-        if (samples > 0){
+        if (!emptying_mode && samples > 0){
             int16_t buf[samples];
             for(int i=0; i<samples; i++){
                 buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
             }
             if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
                 if (err == -EPIPE){
+                    printf("pipe died\n"); 
                     snd_pcm_prepare(playback_handle);
                     snd_pcm_writei (playback_handle, buf, samples);
                 }

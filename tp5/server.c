@@ -9,7 +9,7 @@
 #include <alsa/asoundlib.h>
 #include "fifo.h"
 
-#define BUFFER_FRAMES 1
+#define BUFFER_FRAMES 128
 
 int closing = 0;
 
@@ -83,6 +83,23 @@ int open_sound(char* device, snd_pcm_t **capture_handle, char** buffer){
     }
 
     fprintf(stderr, "hw_params channels setted\n");
+
+    unsigned int min=1000, max=50000;
+    int mindir=1, maxdir=-1;
+    if ((err = snd_pcm_hw_params_set_buffer_time_minmax (*capture_handle, hw_params, &min, &mindir, &max, &maxdir)) < 0) {
+		fprintf (stderr, "cannot set buffer time (%s)\n",
+			 snd_strerror (err));
+		exit (1);
+	}
+
+    unsigned int val;
+    int dir;
+    snd_pcm_hw_params_get_buffer_time(hw_params, &val, &dir);
+    printf("buffer_time: %u, dir: %i\n", val, dir);
+    snd_pcm_hw_params_get_buffer_time_min(hw_params, &val, &dir);
+    printf("buffer_time (min): %u, dir: %i\n", val, dir);
+    snd_pcm_hw_params_get_buffer_time_max(hw_params, &val, &dir);
+    printf("buffer_time (max): %u, dir: %i\n", val, dir);
 
     if ((err = snd_pcm_hw_params (*capture_handle, hw_params)) < 0) {
         fprintf (stderr, "cannot set parameters (%s)\n",
