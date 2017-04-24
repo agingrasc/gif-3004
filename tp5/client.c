@@ -8,8 +8,16 @@
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
 
-#define BUFFER_SIZE 10240
-#define MINI_BUFFER_SIZE 10240
+#define BUFFER_SIZE 5120
+#define MINI_BUFFER_SIZE 2048
+
+long long current_timestamp() {
+    struct timeval te; 
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // caculate milliseconds
+    // printf("milliseconds: %lld\n", milliseconds);
+    return milliseconds;
+}
 
 int reajust_buffer(unsigned char *buffer, int data_consumed, int data_in_buffer){
     int data_copied = data_in_buffer-data_consumed;
@@ -24,7 +32,7 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 	// Voyez la documentation de Alsa pour plus de détails
 	// De manière générale, la carte de son est d'abord ouverte, puis
 	// on configure plusieurs paramètres.
-	if ((err = snd_pcm_open (playback_handle, device, SND_PCM_STREAM_PLAYBACK, 0)) < 0) {
+	if ((err = snd_pcm_open (playback_handle, device, SND_PCM_STREAM_PLAYBACK, SND_PCM_NONBLOCK)) < 0) {
 		fprintf (stderr, "cannot open audio device %s (%s)\n",
 			 device,
 			 snd_strerror (err));
@@ -61,6 +69,7 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 			 snd_strerror (err));
 		exit (1);
 	}
+    printf("rate: %u\n", rate);
 
 	if ((err = snd_pcm_hw_params_set_channels (*playback_handle, hw_params, 1)) < 0) {
 		fprintf (stderr, "cannot set channel count (%s)\n",
@@ -102,14 +111,14 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 
 int main (int argc, char *argv[]){
 
-    if (argc < 2){
+    if (argc < 3){
         return 1;
     }
 
 	snd_pcm_t *playback_handle;
 
     audio_open(argv[1], &playback_handle);
-    int reader = open("/dev/rfcomm0", O_RDONLY);
+    int reader = open(argv[2], O_RDONLY);
     printf("Open sucessful\n");
 
     unsigned char buffer[BUFFER_SIZE];
@@ -144,6 +153,7 @@ int main (int argc, char *argv[]){
             if (data_read < MINI_BUFFER_SIZE-data_in_buffer)
                 emptying_mode = 0;
         }
+
         float **sample_data;
         int channels, samples;
         int err;
@@ -158,18 +168,41 @@ int main (int argc, char *argv[]){
             for(int i=0; i<samples; i++){
                 buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
             }
-            if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
-                if (err == -EPIPE){
-                    printf("pipe died\n"); 
-                    snd_pcm_prepare(playback_handle);
-                    snd_pcm_writei (playback_handle, buf, samples);
+            long long start_time = current_timestamp();
+            int wait_err;
+
+            int written = 0;
+            while (written<samples){
+
+                int avail = snd_pcm_avail_update(playback_handle);
+
+                avail = avail>900 ? avail-900 : 0;
+                int towrite = avail>(samples-written) ? (samples-written) : avail;
+
+                if ((err = avail) < 0 || (err = snd_pcm_writei (playback_handle, buf+written, towrite)) < 0) {
+                    if (err == -EPIPE){
+                        printf("pipe died\n"); 
+                        snd_pcm_prepare(playback_handle);
+                        snd_pcm_writei (playback_handle, buf, samples);
+                    }
+                    else if (err = -ESTRPIPE){
+                        snd_pcm_prepare(playback_handle);
+                    }
+                    else{
+                        fprintf (stderr, "write to audio interface failed (%s)\n",
+                            snd_strerror (err));
+                        exit (1);
+                    }
                 }
                 else{
-                    fprintf (stderr, "write to audio interface failed (%s)\n",
-                        snd_strerror (err));
-                    exit (1);
+                    written += towrite;
+                    printf("towrite: %i\n", towrite);
+                    printf("avail: %i\n", towrite);
+                    printf("left: %i\n", samples-written);
+                    printf("err: %i\n", err);
                 }
             }
+            printf("time(ms): %lu\n", current_timestamp()-start_time);
         }
         data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);
     }
