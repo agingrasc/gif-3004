@@ -109,7 +109,7 @@ int main (int argc, char *argv[]){
 	snd_pcm_t *playback_handle;
 
     audio_open(argv[1], &playback_handle);
-    int reader = open("/dev/rfcomm0", O_RDONLY);
+    int reader = open("/tmp/bluetooth_out", O_RDONLY);
     printf("Open sucessful\n");
 
     unsigned char buffer[BUFFER_SIZE];
