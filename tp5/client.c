@@ -9,7 +9,7 @@
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
 
-#define BUFFER_SIZE (256 * 1024) * 1800
+#define BUFFER_SIZE (256 * 1024)
 #define EXPECTED_HEADER_SIZE 10240
 #define RECEPTION_BUFFER_SIZE 8192
 
@@ -105,6 +105,11 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 
 int get_availables_bytes() {
     int actual_writer_idx = writer_idx;
+    if (actual_writer_idx < reader_idx) {
+        int availables_bytes = BUFFER_SIZE - reader_idx;
+        reader_idx = 0;
+        return availables_bytes;
+    }
     return actual_writer_idx - reader_idx;
 }
 
@@ -162,7 +167,7 @@ int main (int argc, char *argv[]){
     int data_consumed, vorbis_error=0;
 
     stb_vorbis* decoder = stb_vorbis_open_pushdata(received_data, data_in_buffer, &data_consumed, &vorbis_error, NULL);
-    reader_idx += data_consumed;
+    reader_idx = (reader_idx + data_consumed) % BUFFER_SIZE;
 
     if (decoder == NULL && vorbis_error == VORBIS_need_more_data){
         printf("NEED MOAR DATA\n");
@@ -181,7 +186,7 @@ int main (int argc, char *argv[]){
         int channels, samples;
         int err;
         data_consumed = stb_vorbis_decode_frame_pushdata(decoder, received_data+reader_idx, data_in_buffer, &channels, &sample_data, &samples);
-        reader_idx += data_consumed;
+        reader_idx = (reader_idx + data_consumed) % BUFFER_SIZE;
 
         #ifdef DEBUG
             printf("data_in_buffer: %i\n", data_in_buffer);
