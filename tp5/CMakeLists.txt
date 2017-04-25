@@ -2,6 +2,7 @@ project("bluetooth_sound")
 cmake_minimum_required(VERSION 3.6)
 
 set(CMAKE_C_FLAGS "-Wall -Wno-unused-value -Wno-format-extra-args -Wno-format")
+add_definitions(-DDEBUG)
 
 add_executable(server bluetooth_server.c fifo.c)
 target_link_libraries(server asound vorbis vorbisenc m ogg)
