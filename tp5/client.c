@@ -4,12 +4,21 @@
 #include <string.h>
 #include <stdint.h>
 #include "fifo.h"
+#include <pthread.h>
 
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
 
 #define BUFFER_SIZE 10240
 #define MINI_BUFFER_SIZE 10240
+#define EXPECTED_
+#define RECEPTION_BUFFER_SIZE 8
+#define BLUETOOTH_FILE "/dev/rfcomm0"
+
+int receive_mode = 1;
+char* reception_ring_buffer[BUFFER_SIZE];
+int reader_idx = 0;
+int writer_idx = 0;
 
 int reajust_buffer(unsigned char *buffer, int data_consumed, int data_in_buffer){
     int data_copied = data_in_buffer-data_consumed;
@@ -100,26 +109,71 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 	}
 }
 
+
+int get_availables_bytes() {
+    int actual_writer_idx = writer_idx;
+    int availables_bytes = actual_writer_idx - reader_idx;
+    if (availables_bytes < 0) {
+        availables_bytes = BUFFER_SIZE - reader_idx + actual_writer_idx;
+    }
+
+    return availables_bytes;
+}
+
+
+int write_data(char* data, ssize_t size) {
+
+    memcpy(reception_ring_buffer + writer_idx, data, size);
+    writer_idx = (writer_idx + size) % BUFFER_SIZE;
+    return 0;
+}
+
+
+int read_data(char* data, int size) {
+
+    if (get_availables_bytes() < size) {
+        return 1;
+    }
+    memcpy(data, reception_ring_buffer+reader_idx, size);
+    reader_idx = (reader_idx + size) % BUFFER_SIZE;
+    return 0;
+}
+
+
+void* reception_thread(void* args) {
+    char reception_data[RECEPTION_BUFFER_SIZE];
+    int bluetooth_reader = *((int*) args);
+    while (receive_mode) {
+        ssize_t bytes_read = read(bluetooth_reader, reception_data, RECEPTION_BUFFER_SIZE);
+        write_data(reception_data, bytes_read);
+    }
+}
+
+
 int main (int argc, char *argv[]){
 
     if (argc < 2){
+        printf("Need an audio device!\n");
         return 1;
     }
 
 	snd_pcm_t *playback_handle;
 
     audio_open(argv[1], &playback_handle);
-    int reader = open("/tmp/bluetooth_out", O_RDONLY);
+    int reader = open(BLUETOOTH_FILE, O_RDONLY);
     printf("Open sucessful\n");
 
+    pthread_t thread;
+    pthread_create(&thread, NULL, reception_thread, &reader);
     unsigned char buffer[BUFFER_SIZE];
     int data_in_buffer; 
     for(int i = 0; i<BUFFER_SIZE;){
         printf("Attempting to read\n");
         int bytes_read = read(reader, buffer+i, BUFFER_SIZE-i);
         printf("Byte read: %d\n", bytes_read);
-        if (bytes_read > 0)
+        if (bytes_read > 0) {
             i += bytes_read;
+        }
     }
     data_in_buffer = BUFFER_SIZE;
 
@@ -150,8 +204,9 @@ int main (int argc, char *argv[]){
         data_consumed = stb_vorbis_decode_frame_pushdata(decoder, buffer, data_in_buffer, &channels, &sample_data, &samples);
         printf("data_in_buffer: %i\n", data_in_buffer);
         printf("data_consumed: %i\n", data_consumed);
-        if(snd_pcm_delay(playback_handle, &delay) == 0)
-            printf("delay: %f\n", delay/44100.0f); 
+        if(snd_pcm_delay(playback_handle, &delay) == 0) {
+            printf("delay: %f\n", delay / 44100.0f);
+        }
 
         if (!emptying_mode && samples > 0){
             int16_t buf[samples];
