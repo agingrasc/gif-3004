@@ -9,10 +9,9 @@
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
 
-#define BUFFER_SIZE (256 * 1024) * 3600
+#define BUFFER_SIZE (256 * 1024) * 1800
 #define EXPECTED_HEADER_SIZE 10240
 #define RECEPTION_BUFFER_SIZE 8192
-#define BLUETOOTH_FILE "/dev/rfcomm0"
 
 int receive_mode = 1;
 unsigned char* received_data;
@@ -122,7 +121,6 @@ void* reception_thread(void* args) {
     char reception_data[RECEPTION_BUFFER_SIZE];
     int bluetooth_reader = *((int*) args);
     while (receive_mode) {
-        printf("Attempting to read.\n");
         ssize_t bytes_read = read(bluetooth_reader, reception_data, RECEPTION_BUFFER_SIZE);
         write_data(reception_data, bytes_read);
     }
@@ -131,26 +129,35 @@ void* reception_thread(void* args) {
 
 int main (int argc, char *argv[]){
 
-    if (argc < 2){
+    if (argc < 3){
         printf("Need an audio device!\n");
-        return 1;
+        printf("Need a file path\n");
+        exit(1);
     }
 
 	snd_pcm_t *playback_handle;
 
     audio_open(argv[1], &playback_handle);
-    int reader = open(BLUETOOTH_FILE, O_RDONLY);
+    int reader = open(argv[2], O_RDONLY);
+    if (reader == -1) {
+        printf("Open failed! %s", argv[2]);
+        exit(1);
+    }
     printf("Open sucessful\n");
 
     received_data = (unsigned char *) malloc(BUFFER_SIZE);
+    if (received_data == NULL) {
+        printf("Echec allocation du buffer.\n");
+        exit(1);
+    }
 
     pthread_t thread;
     pthread_create(&thread, NULL, reception_thread, &reader);
     while (get_availables_bytes() < EXPECTED_HEADER_SIZE) {
         sleep(0);
-        printf("Waiting for header: %d\n", get_availables_bytes());
     }
     int data_in_buffer = get_availables_bytes();
+    printf("Header ok, we have: %d\n", get_availables_bytes());
 
     int data_consumed, vorbis_error=0;
 
@@ -185,6 +192,7 @@ int main (int argc, char *argv[]){
         #endif
 
         if (samples > 0){
+            printf("Playing some samples: %d\n", samples);
             int16_t buf[samples];
 
             for (int i = 0; i < samples; i++){
