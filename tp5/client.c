@@ -9,6 +9,7 @@
 #define BUFFER_SIZE (256 * 1024)
 #define EXPECTED_HEADER_SIZE 10240
 #define RECEPTION_BUFFER_SIZE 8192
+#define RECEPTION_LIMIT BUFFER_SIZE/2
 
 int receive_mode = 1;
 int playback_active = 1;
@@ -105,23 +106,21 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 int get_availables_bytes() {
     int actual_writer_idx = writer_idx;
     if (actual_writer_idx < reader_idx) {
-        int availables_bytes = BUFFER_SIZE - reader_idx;
-        reader_idx = 0;
+        int availables_bytes = (BUFFER_SIZE - reader_idx) + writer_idx;
         return availables_bytes;
     }
     return actual_writer_idx - reader_idx;
 }
 
 int write_data(char* data, ssize_t size) {
-
     int remaining_bytes_before_roll_over = BUFFER_SIZE - writer_idx;
     if (remaining_bytes_before_roll_over < size) {
-        memcpy(received_data, data, remaining_bytes_before_roll_over);
+        memcpy(received_data + writer_idx, data, remaining_bytes_before_roll_over);
         writer_idx = 0;
         data += remaining_bytes_before_roll_over;
         size -= remaining_bytes_before_roll_over;
     }
-    memcpy(received_data + writer_idx, data, (int) size);
+    memcpy(received_data + writer_idx, data, size);
     writer_idx += (int) size;
     return 0;
 }
@@ -130,17 +129,24 @@ void* reception_thread(void* args) {
     char reception_data[RECEPTION_BUFFER_SIZE];
     int bluetooth_reader = *((int*) args);
     while (receive_mode) {
+//        if (get_availables_bytes() >= RECEPTION_LIMIT) {
+//            sleep(0);
+//            continue;
+//        }
         ssize_t bytes_read = read(bluetooth_reader, reception_data, RECEPTION_BUFFER_SIZE);
         write_data(reception_data, bytes_read);
     }
     return NULL;
 }
 
-int decode_frame(stb_vorbis* decoder, int data_in_buffer, float** sample_data, int* samples) {
+float** decode_frame(stb_vorbis* decoder, int data_in_buffer, int* samples) {
     int channels;
+    printf("Reader idx: %d\nWriter idx: %d\nData to read: %d\n", reader_idx, writer_idx, data_in_buffer);
+    float** sample_data = NULL;
+    char* data_to_decode[data_in_buffer];
+    read_data(data_to_decode, data_in_buffer);
     int data_consumed = stb_vorbis_decode_frame_pushdata(decoder, received_data+reader_idx, data_in_buffer, &channels, &sample_data, samples);
-    reader_idx = (reader_idx + data_consumed) % BUFFER_SIZE;
-    return 0;
+    return sample_data;
 }
 
 int playback_samples(snd_pcm_t* playback_handle, int samples, float** sample_data) {
@@ -222,8 +228,7 @@ int main (int argc, char *argv[]){
         }
         data_in_buffer = availables_bytes;
 
-        float **sample_data = NULL;
-        decode_frame(decoder, data_in_buffer, sample_data, &samples);
+        float** sample_data = decode_frame(decoder, data_in_buffer, &samples);
 
         #ifdef DEBUG
             printf("data_in_buffer: %i\n", data_in_buffer);
