@@ -1,9 +1,6 @@
 
 #include <alsa/asoundlib.h>
-#include <time.h>
-#include <string.h>
-#include <stdint.h>
-#include "fifo.h"
+#include <signal.h>
 #include <pthread.h>
 
 #define STB_VORBIS_HEADER_ONLY
@@ -14,6 +11,7 @@
 #define RECEPTION_BUFFER_SIZE 8192
 
 int receive_mode = 1;
+int playback_active = 1;
 unsigned char* received_data;
 int reader_idx = 0;
 int writer_idx = 0;
@@ -116,7 +114,14 @@ int get_availables_bytes() {
 
 int write_data(char* data, ssize_t size) {
 
-    memcpy(received_data + writer_idx, data, size);
+    int remaining_bytes_before_roll_over = BUFFER_SIZE - writer_idx;
+    if (remaining_bytes_before_roll_over < size) {
+        memcpy(received_data, data, remaining_bytes_before_roll_over);
+        writer_idx = 0;
+        data += remaining_bytes_before_roll_over;
+        size -= remaining_bytes_before_roll_over;
+    }
+    memcpy(received_data + writer_idx, data, (int) size);
     writer_idx += (int) size;
     return 0;
 }
@@ -174,7 +179,7 @@ int main (int argc, char *argv[]){
     }
 
     snd_pcm_sframes_t delay;
-    while(1){
+    while(playback_active){
         int availables_bytes = get_availables_bytes();
         if (availables_bytes <= 0) {
             sleep(0);
@@ -218,6 +223,15 @@ int main (int argc, char *argv[]){
             }
         }
     }
-    receive_mode = 0;
+
+    void* thread_ret;
+    pthread_join(thread, thread_ret);
     close(reader);
+}
+
+void sighandler(int signum) {
+    if (signum == SIGINT || signum == SIGKILL) {
+        receive_mode = 0;
+        playback_active = 0;
+    }
 }
