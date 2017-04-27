@@ -16,6 +16,8 @@ unsigned char* received_data;
 int reader_idx = 0;
 int writer_idx = 0;
 
+void sighandler(int);
+
 
 void audio_open(char* device, snd_pcm_t **playback_handle){
 	int err;
@@ -100,7 +102,6 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 	}
 }
 
-
 int get_availables_bytes() {
     int actual_writer_idx = writer_idx;
     if (actual_writer_idx < reader_idx) {
@@ -110,7 +111,6 @@ int get_availables_bytes() {
     }
     return actual_writer_idx - reader_idx;
 }
-
 
 int write_data(char* data, ssize_t size) {
 
@@ -126,7 +126,6 @@ int write_data(char* data, ssize_t size) {
     return 0;
 }
 
-
 void* reception_thread(void* args) {
     char reception_data[RECEPTION_BUFFER_SIZE];
     int bluetooth_reader = *((int*) args);
@@ -134,11 +133,46 @@ void* reception_thread(void* args) {
         ssize_t bytes_read = read(bluetooth_reader, reception_data, RECEPTION_BUFFER_SIZE);
         write_data(reception_data, bytes_read);
     }
+    return NULL;
+}
+
+int decode_frame(stb_vorbis* decoder, int data_in_buffer, float** sample_data, int* samples) {
+    int channels;
+    int data_consumed = stb_vorbis_decode_frame_pushdata(decoder, received_data+reader_idx, data_in_buffer, &channels, &sample_data, samples);
+    reader_idx = (reader_idx + data_consumed) % BUFFER_SIZE;
+    return 0;
+}
+
+int playback_samples(snd_pcm_t* playback_handle, int samples, float** sample_data) {
+    int err;
+
+    printf("Playing some samples: %d\n", samples);
+    int16_t buf[samples];
+
+    for (int i = 0; i < samples; i++){
+        buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
+    }
+
+    if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
+        if (err == -EPIPE){
+            printf("pipe died\n");
+            snd_pcm_prepare(playback_handle);
+            snd_pcm_writei (playback_handle, buf, samples);
+        }
+        else{
+            fprintf (stderr, "write to audio interface failed (%s)\n",
+                     snd_strerror (err));
+            exit (1);
+        }
+    }
+
+    return 0;
 }
 
 
 int main (int argc, char *argv[]){
 
+    signal(SIGINT | SIGKILL, sighandler);
     if (argc < 3){
         printf("Need an audio device!\n");
         printf("Need a file path\n");
@@ -179,6 +213,7 @@ int main (int argc, char *argv[]){
     }
 
     snd_pcm_sframes_t delay;
+    int samples;
     while(playback_active){
         int availables_bytes = get_availables_bytes();
         if (availables_bytes <= 0) {
@@ -187,11 +222,8 @@ int main (int argc, char *argv[]){
         }
         data_in_buffer = availables_bytes;
 
-        float **sample_data;
-        int channels, samples;
-        int err;
-        data_consumed = stb_vorbis_decode_frame_pushdata(decoder, received_data+reader_idx, data_in_buffer, &channels, &sample_data, &samples);
-        reader_idx = (reader_idx + data_consumed) % BUFFER_SIZE;
+        float **sample_data = NULL;
+        decode_frame(decoder, data_in_buffer, sample_data, &samples);
 
         #ifdef DEBUG
             printf("data_in_buffer: %i\n", data_in_buffer);
@@ -202,36 +234,16 @@ int main (int argc, char *argv[]){
         #endif
 
         if (samples > 0){
-            printf("Playing some samples: %d\n", samples);
-            int16_t buf[samples];
-
-            for (int i = 0; i < samples; i++){
-                buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
-            }
-
-            if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
-                if (err == -EPIPE){
-                    printf("pipe died\n"); 
-                    snd_pcm_prepare(playback_handle);
-                    snd_pcm_writei (playback_handle, buf, samples);
-                }
-                else{
-                    fprintf (stderr, "write to audio interface failed (%s)\n",
-                        snd_strerror (err));
-                    exit (1);
-                }
-            }
+            playback_samples(playback_handle, samples, sample_data);
         }
     }
 
-    void* thread_ret;
+    void* thread_ret = NULL;
     pthread_join(thread, thread_ret);
     close(reader);
 }
 
 void sighandler(int signum) {
-    if (signum == SIGINT || signum == SIGKILL) {
-        receive_mode = 0;
-        playback_active = 0;
-    }
+    receive_mode = 0;
+    playback_active = 0;
 }
