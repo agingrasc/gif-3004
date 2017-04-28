@@ -60,7 +60,7 @@ int main (int argc, char *argv[]){
 
     vorbis_info_init(&vi);
 
-    if ((err = vorbis_encode_init(&vi,1,44100, 128000, -1, -1))) {
+    if ((err = vorbis_encode_init(&vi,1,44100, 64000, -1, -1))) {
         printf("vorbis_encode_init failed\n");
         exit(1);
     }

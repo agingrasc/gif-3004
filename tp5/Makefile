@@ -2,7 +2,7 @@ LIBS = -lasound -lvorbis -lvorbisenc -lm -logg
 #PROFILING= -pg -fprofile-arcs -ftest-coverage
 PROFILING= 
 #OPTIMIZATION= -O3
-OPTIMIZATION= -Og
+OPTIMIZATION= -std=gnu11 -Og
 
 .PHONY: all clean
 all: audio_in bluetooth_server filters client bluetooth_sim
