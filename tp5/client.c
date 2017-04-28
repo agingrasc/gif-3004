@@ -4,18 +4,20 @@
 #include <string.h>
 #include <stdint.h>
 #include "fifo.h"
+#include <pthread.h>
 
 #define STB_VORBIS_HEADER_ONLY
 #include "stb_vorbis.c"
 
-#define BUFFER_SIZE 10240
-#define MINI_BUFFER_SIZE 10240
+#define BUFFER_SIZE (256 * 1024) * 1800
+#define EXPECTED_HEADER_SIZE 10240
+#define RECEPTION_BUFFER_SIZE 8192
 
-int reajust_buffer(unsigned char *buffer, int data_consumed, int data_in_buffer){
-    int data_copied = data_in_buffer-data_consumed;
-    memmove(buffer, buffer+data_consumed, data_copied);
-    return data_copied;
-}
+int receive_mode = 1;
+unsigned char* received_data;
+int reader_idx = 0;
+int writer_idx = 0;
+
 
 void audio_open(char* device, snd_pcm_t **playback_handle){
 	int err;
@@ -100,64 +102,103 @@ void audio_open(char* device, snd_pcm_t **playback_handle){
 	}
 }
 
+
+int get_availables_bytes() {
+    int actual_writer_idx = writer_idx;
+    return actual_writer_idx - reader_idx;
+}
+
+
+int write_data(char* data, ssize_t size) {
+
+    memcpy(received_data + writer_idx, data, size);
+    writer_idx += (int) size;
+    return 0;
+}
+
+
+void* reception_thread(void* args) {
+    char reception_data[RECEPTION_BUFFER_SIZE];
+    int bluetooth_reader = *((int*) args);
+    while (receive_mode) {
+        ssize_t bytes_read = read(bluetooth_reader, reception_data, RECEPTION_BUFFER_SIZE);
+        write_data(reception_data, bytes_read);
+    }
+}
+
+
 int main (int argc, char *argv[]){
 
-    if (argc < 2){
-        return 1;
+    if (argc < 3){
+        printf("Need an audio device!\n");
+        printf("Need a file path\n");
+        exit(1);
     }
 
 	snd_pcm_t *playback_handle;
 
     audio_open(argv[1], &playback_handle);
-    int reader = open("/tmp/bluetooth_out", O_RDONLY);
+    int reader = open(argv[2], O_RDONLY);
+    if (reader == -1) {
+        printf("Open failed! %s", argv[2]);
+        exit(1);
+    }
     printf("Open sucessful\n");
 
-    unsigned char buffer[BUFFER_SIZE];
-    int data_in_buffer; 
-    for(int i = 0; i<BUFFER_SIZE;){
-        printf("Attempting to read\n");
-        int bytes_read = read(reader, buffer+i, BUFFER_SIZE-i);
-        printf("Byte read: %d\n", bytes_read);
-        if (bytes_read > 0)
-            i += bytes_read;
+    received_data = (unsigned char *) malloc(BUFFER_SIZE);
+    if (received_data == NULL) {
+        printf("Echec allocation du buffer.\n");
+        exit(1);
     }
-    data_in_buffer = BUFFER_SIZE;
+
+    pthread_t thread;
+    pthread_create(&thread, NULL, reception_thread, &reader);
+    while (get_availables_bytes() < EXPECTED_HEADER_SIZE) {
+        sleep(0);
+    }
+    int data_in_buffer = get_availables_bytes();
+    printf("Header ok, we have: %d\n", get_availables_bytes());
 
     int data_consumed, vorbis_error=0;
 
-    stb_vorbis* decoder = stb_vorbis_open_pushdata(buffer, data_in_buffer, &data_consumed, &vorbis_error, NULL);
+    stb_vorbis* decoder = stb_vorbis_open_pushdata(received_data, data_in_buffer, &data_consumed, &vorbis_error, NULL);
+    reader_idx += data_consumed;
 
     if (decoder == NULL && vorbis_error == VORBIS_need_more_data){
         printf("NEED MOAR DATA\n");
     }
 
-    data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);
-
     snd_pcm_sframes_t delay;
-
-    int emptying_mode = 1;
     while(1){
-        int data_read;
-        printf("Attempting to read\n");
-        if ((data_read = read(reader, buffer+data_in_buffer, MINI_BUFFER_SIZE-data_in_buffer)) > 0){
-            data_in_buffer += data_read;
-            if (data_read < MINI_BUFFER_SIZE-data_in_buffer)
-                emptying_mode = 0;
+        int availables_bytes = get_availables_bytes();
+        if (availables_bytes <= 0) {
+            sleep(0);
+            continue;
         }
+        data_in_buffer = availables_bytes;
+
         float **sample_data;
         int channels, samples;
         int err;
-        data_consumed = stb_vorbis_decode_frame_pushdata(decoder, buffer, data_in_buffer, &channels, &sample_data, &samples);
-        printf("data_in_buffer: %i\n", data_in_buffer);
-        printf("data_consumed: %i\n", data_consumed);
-        if(snd_pcm_delay(playback_handle, &delay) == 0)
-            printf("delay: %f\n", delay/44100.0f); 
+        data_consumed = stb_vorbis_decode_frame_pushdata(decoder, received_data+reader_idx, data_in_buffer, &channels, &sample_data, &samples);
+        reader_idx += data_consumed;
 
-        if (!emptying_mode && samples > 0){
+        #ifdef DEBUG
+            printf("data_in_buffer: %i\n", data_in_buffer);
+            printf("data_consumed: %i\n", data_consumed);
+            if(snd_pcm_delay(playback_handle, &delay) == 0) {
+                printf("delay: %f\n", delay / 44100.0f);
+            }
+        #endif
+
+        if (samples > 0){
+            printf("Playing some samples: %d\n", samples);
             int16_t buf[samples];
-            for(int i=0; i<samples; i++){
+
+            for (int i = 0; i < samples; i++){
                 buf[i] = sample_data[0][i] * ((1<<(16-1))-1);
             }
+
             if ((err = snd_pcm_writei (playback_handle, buf, samples)) < 0) {
                 if (err == -EPIPE){
                     printf("pipe died\n"); 
@@ -171,8 +212,7 @@ int main (int argc, char *argv[]){
                 }
             }
         }
-        data_in_buffer = reajust_buffer(buffer, data_consumed, data_in_buffer);
     }
-
+    receive_mode = 0;
     close(reader);
 }
